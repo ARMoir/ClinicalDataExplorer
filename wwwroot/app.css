@@ -311,3 +311,69 @@ main { max-width: 1180px; margin: 0 auto; padding: 28px 24px 60px; }
 .xml-comment { color: #7d8590; font-style: italic; }
 .xml-cdata { color: #ffa657; }
 .xml-declaration { color: #8b949e; }
+
+/* Windows/AD identity shown in the upper-left application header. */
+.topbar-left {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+.user-identity {
+    min-width: 120px;
+    max-width: 220px;
+    padding-right: 18px;
+    border-right: 1px solid rgba(255,255,255,.18);
+    display: flex;
+    flex-direction: column;
+    line-height: 1.15;
+}
+.user-identity-label {
+    color: rgba(255,255,255,.60);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    margin-bottom: 3px;
+}
+.user-identity strong {
+    color: white;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+}
+.user-identity-full {
+    color: rgba(255,255,255,.68);
+    font-size: 10px;
+    margin-top: 3px;
+    overflow-wrap: anywhere;
+}
+.user-identity-disabled strong { color: rgba(255,255,255,.85); }
+.settings-info {
+    margin-top: 16px;
+    border-left: 4px solid var(--primary-color, #1f618d);
+    background: #f6f9fb;
+    color: #566573;
+    padding: 12px 14px;
+    border-radius: 4px;
+    font-size: 13px;
+    line-height: 1.5;
+}
+.settings-field select {
+    width: 100%;
+    border: 1px solid #bdc3c7;
+    border-radius: 7px;
+    padding: 10px 12px;
+    background: white;
+    color: #17202a;
+}
+
+@media (max-width: 760px) {
+    .topbar-left {
+        width: 100%;
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+    .user-identity {
+        min-width: 0;
+        max-width: none;
+    }
+}

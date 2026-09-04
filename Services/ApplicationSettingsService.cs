@@ -37,6 +37,8 @@ public sealed class ApplicationSettingsService
             ProductName = string.IsNullOrWhiteSpace(settings.ProductName) ? "Clinical Data Explorer" : settings.ProductName.Trim(),
             FacilityName = string.IsNullOrWhiteSpace(settings.FacilityName) ? "Your Facility" : settings.FacilityName.Trim(),
             FhirBaseUrl = NormalizeFhirBaseUrl(settings.FhirBaseUrl),
+            AuthenticationMode = NormalizeAuthenticationMode(settings.AuthenticationMode),
+            WindowsDomain = NormalizeWindowsDomain(settings.WindowsDomain),
             LogoPath = settings.LogoPath,
             PrimaryColor = NormalizeColor(settings.PrimaryColor, "#1F618D"),
             SecondaryColor = NormalizeColor(settings.SecondaryColor, "#17202A")
@@ -130,6 +132,26 @@ public sealed class ApplicationSettingsService
         }
 
         return trimmed.TrimEnd('/') + "/";
+    }
+
+
+    private static string NormalizeAuthenticationMode(string? value)
+    {
+        if (string.Equals(value?.Trim(), "Disabled", StringComparison.OrdinalIgnoreCase))
+            return "Disabled";
+
+        if (string.Equals(value?.Trim(), "Windows", StringComparison.OrdinalIgnoreCase))
+            return "Windows";
+
+        // Fail closed for unknown/missing persisted values.
+        return "Windows";
+    }
+
+    private static string NormalizeWindowsDomain(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? string.Empty
+            : value.Trim().TrimEnd('\\');
     }
 
     private static string NormalizeColor(string? value, string fallback)

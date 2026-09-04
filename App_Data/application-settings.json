@@ -1,7 +1,10 @@
 {
-  "FacilityName": "Reports",
+  "ProductName": "Clinical Data Explorer",
+  "FacilityName": "Your Facility",
   "FhirBaseUrl": "http://summittest:8080/",
-  "LogoPath": "/uploads/facility-logo-20260904152646666.png",
-  "PrimaryColor": "#113B75",
-  "SecondaryColor": "#006443"
+  "AuthenticationMode": "Windows",
+  "WindowsDomain": "",
+  "LogoPath": null,
+  "PrimaryColor": "#1F618D",
+  "SecondaryColor": "#17202A"
 }

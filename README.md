@@ -82,3 +82,34 @@ Scalar Observation results currently display:
 - Provider
 - Status
 - Observation notes directly beneath the associated result
+
+## Windows / Active Directory authentication
+
+Clinical Data Explorer can use the Windows account already signed in on the user's workstation. It doesn't collect or store AD passwords and it doesn't require a domain-controller address or AD service-account credentials.
+
+Authentication is controlled in `App_Data/application-settings.json` and on the Settings page:
+
+```json
+"AuthenticationMode": "Windows",
+"WindowsDomain": ""
+```
+
+- `AuthenticationMode`: currently `Windows` or `Disabled`. `Disabled` is intended only for development/emergency troubleshooting.
+- `WindowsDomain`: optional domain restriction such as `EMERSON`. Leave it blank initially so you can confirm the exact authenticated identity shown in the upper-left header.
+
+The header shows both the short user name and the full Windows identity, for example `AMoir` and `EMERSON\\AMoir`.
+
+### Local development
+
+The project includes the `Microsoft.AspNetCore.Authentication.Negotiate` package and enables Windows Authentication for IIS Express in `Properties/launchSettings.json`. The normal Kestrel project profiles also use Negotiate when run on Windows.
+
+### IIS deployment
+
+On the Clinical Data Explorer IIS application/site:
+
+1. Install/enable the IIS **Windows Authentication** role service if it isn't already installed.
+2. Set **Windows Authentication = Enabled**.
+3. Set **Anonymous Authentication = Disabled**.
+4. Browse from a domain-connected workstation using Edge/Chrome. The browser normally supplies the active Windows account automatically on an intranet site.
+
+For friendly DNS names or more complex deployments, Kerberos/SPN configuration may eventually be needed. Okta/OIDC can later replace Windows authentication without changing the application's authorization/audit model.

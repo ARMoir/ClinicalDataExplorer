@@ -6,16 +6,38 @@
 <div class="shell" style="@ThemeStyle">
     <header class="topbar">
         <div class="topbar-inner">
-            <a class="brand" href="/">
-                @if (!string.IsNullOrWhiteSpace(Settings.LogoPath))
-                {
-                    <img class="facility-logo" src="@Settings.LogoPath" alt="@($"{Settings.FacilityName} logo")" />
-                }
-                <span class="brand-text">
-                    <strong>@Settings.FacilityName</strong>
-                    <span>@Settings.ProductName</span>
-                </span>
-            </a>
+            <div class="topbar-left">
+                <AuthorizeView>
+                    <Authorized Context="authState">
+                        <div class="user-identity" title="Authenticated Windows identity">
+                            <span class="user-identity-label">Signed in as</span>
+                            <strong>@GetShortUserName(authState.User.Identity?.Name)</strong>
+                            <span class="user-identity-full">@authState.User.Identity?.Name</span>
+                        </div>
+                    </Authorized>
+                    <NotAuthorized>
+                        @if (string.Equals(Settings.AuthenticationMode, "Disabled", StringComparison.OrdinalIgnoreCase))
+                        {
+                            <div class="user-identity user-identity-disabled" title="Authentication is disabled in application settings">
+                                <span class="user-identity-label">User</span>
+                                <strong>Anonymous</strong>
+                                <span class="user-identity-full">Authentication disabled</span>
+                            </div>
+                        }
+                    </NotAuthorized>
+                </AuthorizeView>
+
+                <a class="brand" href="/">
+                    @if (!string.IsNullOrWhiteSpace(Settings.LogoPath))
+                    {
+                        <img class="facility-logo" src="@Settings.LogoPath" alt="@($"{Settings.FacilityName} logo")" />
+                    }
+                    <span class="brand-text">
+                        <strong>@Settings.FacilityName</strong>
+                        <span>@Settings.ProductName</span>
+                    </span>
+                </a>
+            </div>
 
             <nav class="topnav" aria-label="Main navigation">
                 <a href="/">Reports</a>
@@ -39,6 +61,22 @@
     {
         Settings = SettingsService.Current;
         SettingsService.Changed += HandleSettingsChanged;
+    }
+
+    private static string GetShortUserName(string? identityName)
+    {
+        if (string.IsNullOrWhiteSpace(identityName))
+            return "Windows user";
+
+        var slashIndex = identityName.LastIndexOf('\\');
+        if (slashIndex >= 0 && slashIndex < identityName.Length - 1)
+            return identityName[(slashIndex + 1)..];
+
+        var atIndex = identityName.IndexOf('@');
+        if (atIndex > 0)
+            return identityName[..atIndex];
+
+        return identityName;
     }
 
     private void HandleSettingsChanged()

@@ -16,6 +16,21 @@ public sealed class ApplicationSettings
     [StringLength(2048)]
     public string FhirBaseUrl { get; set; } = "http://summittest:8080/";
 
+    /// <summary>
+    /// Current supported values: Windows or Disabled.
+    /// The string setting intentionally leaves room for OIDC and Local later.
+    /// </summary>
+    [Required]
+    [RegularExpression("^(Windows|Disabled)$", ErrorMessage = "Authentication mode must be Windows or Disabled.")]
+    public string AuthenticationMode { get; set; } = "Windows";
+
+    /// <summary>
+    /// Optional NetBIOS or DNS domain restriction. Leave blank to accept any
+    /// Windows identity authenticated by the host.
+    /// </summary>
+    [StringLength(120)]
+    public string WindowsDomain { get; set; } = "";
+
     public string? LogoPath { get; set; }
 
     [Required]
@@ -31,6 +46,8 @@ public sealed class ApplicationSettings
         ProductName = ProductName,
         FacilityName = FacilityName,
         FhirBaseUrl = FhirBaseUrl,
+        AuthenticationMode = AuthenticationMode,
+        WindowsDomain = WindowsDomain,
         LogoPath = LogoPath,
         PrimaryColor = PrimaryColor,
         SecondaryColor = SecondaryColor

@@ -1,12 +1,13 @@
 @namespace ClinicalDataExplorer.Components.Pages
 @page "/settings"
 @inject ApplicationSettingsService SettingsService
+@inject NavigationManager Navigation
 
 <PageTitle>@($"{Form.ProductName} - Settings")</PageTitle>
 
 <div class="page-header settings-page-header">
     <h1>Application Settings</h1>
-    <p>Configure the product identity, facility branding, FHIR server, and report appearance.</p>
+    <p>Configure the product identity, authentication, facility branding, FHIR server, and report appearance.</p>
 </div>
 
 @if (!string.IsNullOrWhiteSpace(SuccessMessage))
@@ -34,6 +35,36 @@
                 <InputText id="productName" @bind-Value="Form.ProductName" placeholder="Clinical Data Explorer" />
                 <ValidationMessage For="@(() => Form.ProductName)" />
             </div>
+        </div>
+    </section>
+
+    <section class="settings-card">
+        <div class="settings-card-heading">
+            <h2>Authentication</h2>
+            <p>Windows mode uses the active Windows/Active Directory account supplied by the host. Clinical Data Explorer never receives or stores the user's AD password.</p>
+        </div>
+
+        <div class="settings-grid">
+            <div class="settings-field">
+                <label for="authenticationMode">Authentication mode</label>
+                <InputSelect id="authenticationMode" @bind-Value="Form.AuthenticationMode">
+                    <option value="Windows">Windows / Active Directory</option>
+                    <option value="Disabled">Disabled (development only)</option>
+                </InputSelect>
+                <ValidationMessage For="@(() => Form.AuthenticationMode)" />
+            </div>
+
+            <div class="settings-field">
+                <label for="windowsDomain">Windows domain (optional)</label>
+                <InputText id="windowsDomain" @bind-Value="Form.WindowsDomain" placeholder="e.g. EMERSON" />
+                <ValidationMessage For="@(() => Form.WindowsDomain)" />
+                <small>Leave blank initially. If set, only identities from this domain are allowed. No domain-controller address or service account is required.</small>
+            </div>
+        </div>
+
+        <div class="settings-info">
+            For IIS deployment, enable <strong>Windows Authentication</strong> and disable <strong>Anonymous Authentication</strong>.
+            Authentication-setting changes force a full page reload so the browser can renegotiate the Windows identity.
         </div>
     </section>
 
@@ -148,6 +179,8 @@
     private bool Saving { get; set; }
     private string? SuccessMessage { get; set; }
     private string? ErrorMessage { get; set; }
+    private string OriginalAuthenticationMode { get; set; } = "Windows";
+    private string OriginalWindowsDomain { get; set; } = "";
 
     private string PreviewThemeStyle =>
         $"--primary-color:{Form.PrimaryColor};--secondary-color:{Form.SecondaryColor};";
@@ -155,6 +188,8 @@
     protected override void OnInitialized()
     {
         Form = SettingsService.Current;
+        OriginalAuthenticationMode = Form.AuthenticationMode;
+        OriginalWindowsDomain = Form.WindowsDomain;
     }
 
     private async Task UploadLogoAsync(InputFileChangeEventArgs args)
@@ -187,9 +222,22 @@
 
         try
         {
+            var authenticationChanged =
+                !string.Equals(OriginalAuthenticationMode, Form.AuthenticationMode, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(OriginalWindowsDomain?.Trim(), Form.WindowsDomain?.Trim(), StringComparison.OrdinalIgnoreCase);
+
             await SettingsService.SaveAsync(Form);
             Form = SettingsService.Current;
-            SuccessMessage = "Settings saved. The new product name and branding are now active.";
+            OriginalAuthenticationMode = Form.AuthenticationMode;
+            OriginalWindowsDomain = Form.WindowsDomain;
+
+            if (authenticationChanged)
+            {
+                Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+                return;
+            }
+
+            SuccessMessage = "Settings saved. The new settings are now active.";
         }
         catch (Exception ex)
         {
