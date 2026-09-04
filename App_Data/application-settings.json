@@ -1,0 +1,7 @@
+{
+  "FacilityName": "Reports",
+  "FhirBaseUrl": "http://summittest:8080/",
+  "LogoPath": "/uploads/facility-logo-20260904152646666.png",
+  "PrimaryColor": "#113B75",
+  "SecondaryColor": "#006443"
+}

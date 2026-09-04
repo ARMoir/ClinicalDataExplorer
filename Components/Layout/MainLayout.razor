@@ -1,0 +1,54 @@
+@namespace ClinicalDataExplorer.Components.Layout
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject ApplicationSettingsService SettingsService
+
+<div class="shell" style="@ThemeStyle">
+    <header class="topbar">
+        <div class="topbar-inner">
+            <a class="brand" href="/">
+                @if (!string.IsNullOrWhiteSpace(Settings.LogoPath))
+                {
+                    <img class="facility-logo" src="@Settings.LogoPath" alt="@($"{Settings.FacilityName} logo")" />
+                }
+                <span class="brand-text">
+                    <strong>@Settings.FacilityName</strong>
+                    <span>@Settings.ProductName</span>
+                </span>
+            </a>
+
+            <nav class="topnav" aria-label="Main navigation">
+                <a href="/">Reports</a>
+                <a href="/settings">Settings</a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        @Body
+    </main>
+</div>
+
+@code {
+    private ApplicationSettings Settings { get; set; } = new();
+
+    private string ThemeStyle =>
+        $"--primary-color:{Settings.PrimaryColor};--secondary-color:{Settings.SecondaryColor};";
+
+    protected override void OnInitialized()
+    {
+        Settings = SettingsService.Current;
+        SettingsService.Changed += HandleSettingsChanged;
+    }
+
+    private void HandleSettingsChanged()
+    {
+        Settings = SettingsService.Current;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        SettingsService.Changed -= HandleSettingsChanged;
+    }
+}

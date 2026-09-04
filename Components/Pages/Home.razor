@@ -1,0 +1,134 @@
+@namespace ClinicalDataExplorer.Components.Pages
+@page "/"
+@inject FhirService FhirService
+@inject XsltService XsltService
+@inject ApplicationSettingsService SettingsService
+@inject XmlDisplayService XmlDisplayService
+
+<PageTitle>@($"{SettingsService.Current.ProductName} - Diagnostic Reports")</PageTitle>
+
+<div class="page-header">
+    <h1>Diagnostic Reports</h1>
+    <p>
+        Searches by DiagnosticReport identifier, includes result Observations and their performers,
+        then transforms the returned FHIR XML Bundle into HTML.
+    </p>
+</div>
+
+<section class="search-card">
+    <label for="identifier">DiagnosticReport identifier</label>
+    <div class="search-row">
+        <input id="identifier"
+               @bind="Identifier"
+               @bind:event="oninput"
+               @onkeydown="HandleKeyDown"
+               placeholder="0000004676"
+               autocomplete="off" />
+
+        <button @onclick="LoadAsync" disabled="@Loading">
+            @(Loading ? "Loading..." : "Load report")
+        </button>
+    </div>
+
+    <div class="endpoint-preview">
+        @EndpointPreview
+    </div>
+</section>
+
+@if (!string.IsNullOrWhiteSpace(ErrorMessage))
+{
+    <div class="error-card">
+        <strong>Request failed</strong>
+        <pre>@ErrorMessage</pre>
+    </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(RequestUri))
+{
+    <div class="request-uri">
+        <strong>Requested:</strong> @RequestUri
+    </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(RenderedHtml))
+{
+    <div class="tabs">
+        <button class="@(ActiveTab == "report" ? "active" : null)"
+                @onclick='() => ActiveTab = "report"'>
+            Report
+        </button>
+        <button class="@(ActiveTab == "xml" ? "active" : null)"
+                @onclick='() => ActiveTab = "xml"'>
+            Raw XML
+        </button>
+    </div>
+
+    @if (ActiveTab == "report")
+    {
+        <section class="viewer-card">
+            @((MarkupString)RenderedHtml)
+        </section>
+    }
+    else
+    {
+        <section class="viewer-card raw-xml">
+            <pre class="xml-code">@((MarkupString)HighlightedXml)</pre>
+        </section>
+    }
+}
+
+@code {
+    private string Identifier { get; set; } = "0000004676";
+    private string? RawXml { get; set; }
+    private string? RenderedHtml { get; set; }
+    private string? HighlightedXml { get; set; }
+    private string? RequestUri { get; set; }
+    private string? ErrorMessage { get; set; }
+    private bool Loading { get; set; }
+    private string ActiveTab { get; set; } = "report";
+
+    private string EndpointPreview =>
+        $"{SettingsService.Current.FhirBaseUrl.TrimEnd('/')}/DiagnosticReport" +
+        $"?identifier={Identifier}" +
+        "&_include=DiagnosticReport:result" +
+        "&_include:iterate=Observation:performer" +
+        "&_include:iterate=PractitionerRole:practitioner" +
+        "&_format=xml";
+
+    private async Task HandleKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+            await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (Loading || string.IsNullOrWhiteSpace(Identifier))
+            return;
+
+        Loading = true;
+        ErrorMessage = null;
+        RawXml = null;
+        RenderedHtml = null;
+        HighlightedXml = null;
+        RequestUri = null;
+        ActiveTab = "report";
+
+        try
+        {
+            var response = await FhirService.GetDiagnosticReportBundleXmlAsync(Identifier);
+            RequestUri = response.RequestUri;
+            RawXml = response.Xml;
+            HighlightedXml = XmlDisplayService.PrettyPrintAndHighlight(response.Xml);
+            RenderedHtml = XsltService.TransformDiagnosticReportBundle(response.Xml, SettingsService.Current);
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+        finally
+        {
+            Loading = false;
+        }
+    }
+}

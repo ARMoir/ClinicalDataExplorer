@@ -1,0 +1,203 @@
+@namespace ClinicalDataExplorer.Components.Pages
+@page "/settings"
+@inject ApplicationSettingsService SettingsService
+
+<PageTitle>@($"{Form.ProductName} - Settings")</PageTitle>
+
+<div class="page-header settings-page-header">
+    <h1>Application Settings</h1>
+    <p>Configure the product identity, facility branding, FHIR server, and report appearance.</p>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(SuccessMessage))
+{
+    <div class="success-card">@SuccessMessage</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(ErrorMessage))
+{
+    <div class="error-card"><strong>Settings error</strong><div>@ErrorMessage</div></div>
+}
+
+<EditForm Model="Form" OnValidSubmit="SaveAsync" FormName="application-settings">
+    <DataAnnotationsValidator />
+
+    <section class="settings-card">
+        <div class="settings-card-heading">
+            <h2>Application</h2>
+            <p>The product name is the user-facing application title. It can be changed without renaming or rebuilding the project.</p>
+        </div>
+
+        <div class="settings-grid">
+            <div class="settings-field settings-field-wide">
+                <label for="productName">Product name</label>
+                <InputText id="productName" @bind-Value="Form.ProductName" placeholder="Clinical Data Explorer" />
+                <ValidationMessage For="@(() => Form.ProductName)" />
+            </div>
+        </div>
+    </section>
+
+    <section class="settings-card">
+        <div class="settings-card-heading">
+            <h2>Facility</h2>
+            <p>This branding appears in the application header and report output.</p>
+        </div>
+
+        <div class="settings-grid">
+            <div class="settings-field settings-field-wide">
+                <label for="facilityName">Facility name</label>
+                <InputText id="facilityName" @bind-Value="Form.FacilityName" />
+                <ValidationMessage For="@(() => Form.FacilityName)" />
+            </div>
+
+            <div class="settings-field settings-field-wide">
+                <label>Logo</label>
+                <div class="logo-setting-row">
+                    <div class="logo-preview" style="@PreviewThemeStyle">
+                        @if (!string.IsNullOrWhiteSpace(Form.LogoPath))
+                        {
+                            <img src="@Form.LogoPath" alt="Facility logo preview" />
+                        }
+                        else
+                        {
+                            <span>No logo</span>
+                        }
+                    </div>
+
+                    <div class="logo-actions">
+                        <InputFile OnChange="UploadLogoAsync" accept="image/png,image/jpeg,image/webp" />
+                        <small>PNG, JPG, or WebP. Maximum 5 MB.</small>
+                        @if (!string.IsNullOrWhiteSpace(Form.LogoPath))
+                        {
+                            <button type="button" class="secondary-button" @onclick="RemoveLogo">Remove logo</button>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="settings-card">
+        <div class="settings-card-heading">
+            <h2>FHIR Server</h2>
+            <p>The base URL used for server-side FHIR API requests. Changes take effect as soon as settings are saved.</p>
+        </div>
+
+        <div class="settings-grid">
+            <div class="settings-field settings-field-wide">
+                <label for="fhirBaseUrl">FHIR base URL</label>
+                <InputText id="fhirBaseUrl" @bind-Value="Form.FhirBaseUrl" placeholder="http://summittest:8080/" />
+                <ValidationMessage For="@(() => Form.FhirBaseUrl)" />
+                <small>Use the server root or FHIR base path, for example http://summittest:8080/ or https://server.example.org/fhir/.</small>
+            </div>
+        </div>
+    </section>
+
+    <section class="settings-card">
+        <div class="settings-card-heading">
+            <h2>Colors</h2>
+            <p>Primary is used for buttons and report accents. Secondary is used for the application header and strong UI elements.</p>
+        </div>
+
+        <div class="color-settings-grid">
+            <div class="settings-field">
+                <label for="primaryColor">Primary color</label>
+                <div class="color-input-row">
+                    <input id="primaryColorPicker" type="color" @bind="Form.PrimaryColor" />
+                    <InputText id="primaryColor" @bind-Value="Form.PrimaryColor" />
+                </div>
+                <ValidationMessage For="@(() => Form.PrimaryColor)" />
+            </div>
+
+            <div class="settings-field">
+                <label for="secondaryColor">Secondary color</label>
+                <div class="color-input-row">
+                    <input id="secondaryColorPicker" type="color" @bind="Form.SecondaryColor" />
+                    <InputText id="secondaryColor" @bind-Value="Form.SecondaryColor" />
+                </div>
+                <ValidationMessage For="@(() => Form.SecondaryColor)" />
+            </div>
+        </div>
+
+        <div class="theme-preview" style="@PreviewThemeStyle">
+            <div class="theme-preview-header">
+                @if (!string.IsNullOrWhiteSpace(Form.LogoPath))
+                {
+                    <img src="@Form.LogoPath" alt="" />
+                }
+                <span class="brand-text">
+                    <strong>@Form.FacilityName</strong>
+                    <span>@Form.ProductName</span>
+                </span>
+            </div>
+            <div class="theme-preview-body">
+                <span class="theme-preview-pill">FINAL</span>
+                <button type="button">Example action</button>
+            </div>
+        </div>
+    </section>
+
+    <div class="settings-actions">
+        <button type="submit" class="primary-button" disabled="@Saving">@(Saving ? "Saving..." : "Save settings")</button>
+        <a class="secondary-link" href="/">Back to report viewer</a>
+    </div>
+</EditForm>
+
+@code {
+    private ApplicationSettings Form { get; set; } = new();
+    private bool Saving { get; set; }
+    private string? SuccessMessage { get; set; }
+    private string? ErrorMessage { get; set; }
+
+    private string PreviewThemeStyle =>
+        $"--primary-color:{Form.PrimaryColor};--secondary-color:{Form.SecondaryColor};";
+
+    protected override void OnInitialized()
+    {
+        Form = SettingsService.Current;
+    }
+
+    private async Task UploadLogoAsync(InputFileChangeEventArgs args)
+    {
+        SuccessMessage = null;
+        ErrorMessage = null;
+
+        try
+        {
+            Form.LogoPath = await SettingsService.SaveLogoAsync(args.File);
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+    }
+
+    private void RemoveLogo()
+    {
+        Form.LogoPath = null;
+        SuccessMessage = "Logo will be removed when you save settings.";
+        ErrorMessage = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        Saving = true;
+        SuccessMessage = null;
+        ErrorMessage = null;
+
+        try
+        {
+            await SettingsService.SaveAsync(Form);
+            Form = SettingsService.Current;
+            SuccessMessage = "Settings saved. The new product name and branding are now active.";
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+        finally
+        {
+            Saving = false;
+        }
+    }
+}
