@@ -7,7 +7,7 @@
       <div class="xslt-detail-grid">
         <div><span class="label">Start</span><span class="value"><xsl:value-of select="f:period/f:start/@value"/></span></div><div><span class="label">End</span><span class="value"><xsl:value-of select="f:period/f:end/@value"/></span></div>
         <div><span class="label">Class</span><span class="value"><xsl:value-of select="f:class/f:display/@value | f:class/f:code/@value"/></span></div><div><span class="label">Service provider</span><span class="value"><xsl:value-of select="f:serviceProvider/f:display/@value"/></span></div>
-        <div><span class="label">FHIR ID</span><span class="value"><xsl:value-of select="f:id/@value"/></span></div><div><span class="label">Identifier</span><span class="value"><xsl:value-of select="f:identifier[1]/f:value/@value"/></span></div>
+        <div><span class="label">Record ID</span><span class="value"><xsl:value-of select="f:id/@value"/></span></div><div><span class="label">Identifier</span><span class="value"><xsl:value-of select="f:identifier[1]/f:value/@value"/></span></div>
         <div class="xslt-wide"><span class="label">Reason</span><span class="value"><xsl:value-of select="f:reasonCode[1]/f:text/@value | f:reasonCode[1]/f:coding[1]/f:display/@value"/></span></div>
       </div>
     </section>

@@ -11,33 +11,33 @@
 @if (Loading) { <div class="empty-state" role="status">Loading demographics…</div> }
 @if (PatientError is not null) { <div class="error-card" role="alert">@PatientError</div> }
 @((MarkupString)PatientHtml)
-@if (LoadingResources) { <div class="empty-state" role="status">Loading patient records and counting resource types across all pages…</div> }
+@if (LoadingResources) { <div class="empty-state" role="status">Loading patient records and counting record categories across all pages…</div> }
 else if (ResourceError is not null)
 {
-    <div class="error-card" role="alert"><strong>Patient resource counts unavailable</strong><p>@ResourceError</p><p>The FHIR endpoint must support Patient $everything to include patient records and their supporting resources. No zero counts have been inferred.</p><button class="secondary-button" @onclick="ReloadAsync">Retry report</button></div>
+    <div class="error-card" role="alert"><strong>Patient record counts unavailable</strong><p>@ResourceError</p><p>The connected server could not supply the complete patient record. Counts are unavailable until the connection supports this request.</p><button class="secondary-button" @onclick="ReloadAsync">Retry report</button></div>
 }
 else if (PatientError is null)
 {
     <section class="report-customization search-card">
-        <div class="card-heading-row"><div><h2>Patient records</h2><span>@Sections.Sum(s => s.Count) resources across @Sections.Count(s => s.Count > 0) types</span></div></div>
+        <div class="card-heading-row"><div><h2>Patient records</h2><span>@Sections.Sum(s => s.Count) records across @Sections.Count(s => s.Count > 0) categories</span></div></div>
         <p>Counts reflect records returned by the server for this patient, including linked supporting records. Expand a section to explore its fields.</p>
         <div class="report-controls">
-            <label for="resource-filter">Find a section <input id="resource-filter" @bind="Filter" @bind:event="oninput" placeholder="e.g. Observation" /></label>
+            <label for="resource-filter">Find a section <input id="resource-filter" @bind="Filter" @bind:event="oninput" placeholder="e.g. visits or medications" /></label>
             <label><input type="checkbox" @bind="ShowEmpty" /> Show types with no returned records</label>
             <button class="secondary-button" @onclick="ExpandVisible">Expand visible sections</button><button class="secondary-button" @onclick="CollapseAll">Collapse all</button>
         </div>
-        <details class="section-picker"><summary>Choose sections for this report</summary><div class="section-choices">@foreach (var section in Sections.Where(s => s.Count > 0)) { <label><input type="checkbox" checked="@(!Hidden.Contains(section.ResourceType))" @onchange="() => ToggleVisibility(section)" /> @(section.ResourceType) (@(section.Count))</label> }</div></details>
+        <details class="section-picker"><summary>Choose sections for this report</summary><div class="section-choices">@foreach (var section in Sections.Where(s => s.Count > 0)) { <label><input type="checkbox" checked="@(!Hidden.Contains(section.ResourceType))" @onchange="() => ToggleVisibility(section)" /> @(section.Label) (@(section.Count))</label> }</div></details>
     </section>
     @if (!VisibleSections.Any()) { <div class="empty-state">No sections match your selection.</div> }
     @foreach (var section in VisibleSections)
     {
         <section class="patient-resource-section" @key="section.ResourceType">
-            <h2><button class="resource-toggle" disabled="@(section.Count == 0)" aria-expanded="@(section.Expanded ? "true" : "false")" aria-controls="@($"resources-{section.ResourceType}")" @onclick="() => Toggle(section)"><span>@(section.ResourceType)</span><span class="resource-count">@(section.Count)</span><span aria-hidden="true">@(section.Count == 0 ? "" : section.Expanded ? "−" : "+")</span></button></h2>
+            <h2><button class="resource-toggle" disabled="@(section.Count == 0)" aria-expanded="@(section.Expanded ? "true" : "false")" aria-controls="@($"resources-{section.ResourceType}")" @onclick="() => Toggle(section)"><span>@(section.Label)</span><span class="resource-count">@(section.Count)</span><span aria-hidden="true">@(section.Count == 0 ? "" : section.Expanded ? "−" : "+")</span></button></h2>
             @if (section.Expanded)
             {
                 <div id="@($"resources-{section.ResourceType}")">
                     @((MarkupString)(section.Html ?? ""))
-                    <nav class="pagination" aria-label="@($"{section.ResourceType} pages")"><button class="secondary-button" disabled="@(section.Page == 0)" @onclick="() => ChangePage(section, -1)">← Previous</button><span>Records @(section.Page * 10 + 1)–@Math.Min((section.Page + 1) * 10, section.Count) of @(section.Count)</span><button class="secondary-button" disabled="@((section.Page + 1) * 10 >= section.Count)" @onclick="() => ChangePage(section, 1)">Next →</button></nav>
+                    <nav class="pagination" aria-label="@($"{section.Label} pages")"><button class="secondary-button" disabled="@(section.Page == 0)" @onclick="() => ChangePage(section, -1)">← Previous</button><span>Records @(section.Page * 10 + 1)–@Math.Min((section.Page + 1) * 10, section.Count) of @(section.Count)</span><button class="secondary-button" disabled="@((section.Page + 1) * 10 >= section.Count)" @onclick="() => ChangePage(section, 1)">Next →</button></nav>
                 </div>
             }
         </section>
@@ -53,7 +53,7 @@ else if (PatientError is null)
     private bool Loading = true, LoadingResources = true, ShowEmpty;
     private IReadOnlyList<PatientResourceSection> Sections = [];
     private readonly HashSet<string> Hidden = new(StringComparer.Ordinal);
-    private IEnumerable<PatientResourceSection> VisibleSections => Sections.Where(s => !Hidden.Contains(s.ResourceType) && (ShowEmpty || s.Count > 0) && s.ResourceType.Contains(Filter, StringComparison.OrdinalIgnoreCase));
+    private IEnumerable<PatientResourceSection> VisibleSections => Sections.Where(s => !Hidden.Contains(s.ResourceType) && (ShowEmpty || s.Count > 0) && (s.Label.Contains(Filter, StringComparison.OrdinalIgnoreCase) || s.ResourceType.Contains(Filter, StringComparison.OrdinalIgnoreCase)));
     // R4 patient compartment catalog; any additional type returned by $everything is included dynamically.
     private const string PatientTypes = "Account AdverseEvent AllergyIntolerance Appointment AppointmentResponse AuditEvent Basic BodyStructure CarePlan CareTeam ChargeItem Claim ClaimResponse ClinicalImpression Communication CommunicationRequest Composition Condition Consent Coverage CoverageEligibilityRequest CoverageEligibilityResponse DetectedIssue DeviceRequest DeviceUseStatement DiagnosticReport DocumentManifest DocumentReference Encounter EnrollmentRequest EpisodeOfCare ExplanationOfBenefit FamilyMemberHistory Flag Goal Group ImagingStudy Immunization ImmunizationEvaluation ImmunizationRecommendation Invoice List MeasureReport Media MedicationAdministration MedicationDispense MedicationRequest MedicationStatement MolecularSequence NutritionOrder Observation Patient Person Procedure Provenance QuestionnaireResponse RelatedPerson RequestGroup ResearchSubject RiskAssessment Schedule ServiceRequest Specimen SupplyDelivery SupplyRequest VisionPrescription";
     protected override Task OnParametersSetAsync() => ReloadAsync();
@@ -76,7 +76,7 @@ else if (PatientError is null)
                 if (token.IsCancellationRequested) return;
                 foreach (var type in PatientTypes.Split(' '))
                     if (!sections.Any(s => s.ResourceType == type)) sections.Add(new(type, []));
-                Sections = sections.OrderByDescending(s => s.Count > 0).ThenBy(s => s.ResourceType, StringComparer.Ordinal).ToList();
+                Sections = sections.OrderByDescending(s => s.Count > 0).ThenBy(s => s.Label, StringComparer.Ordinal).ToList();
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { }
             catch (Exception ex) { if (!token.IsCancellationRequested) ResourceError = ex.Message; }
@@ -85,7 +85,7 @@ else if (PatientError is null)
         catch (Exception ex) { if (!token.IsCancellationRequested) PatientError = ex.Message; }
         finally { if (!token.IsCancellationRequested) { Loading = false; LoadingResources = false; } }
     }
-    private void Render(PatientResourceSection section) => section.Html = XsltService.Transform("PatientResources", section.PageXml(), SettingsService.Current);
+    private void Render(PatientResourceSection section) => section.Html = XsltService.Transform("PatientResources", section.PageXml(), SettingsService.Current, new Dictionary<string, string> { ["resourceLabel"] = section.Label });
     private void Toggle(PatientResourceSection section) { section.Expanded = !section.Expanded; if (section.Expanded && section.Html is null) Render(section); }
     private void ChangePage(PatientResourceSection section, int delta) { section.Page += delta; Render(section); }
     private void ExpandVisible() { foreach (var section in VisibleSections.Where(s => s.Count > 0)) { section.Expanded = true; if (section.Html is null) Render(section); } }

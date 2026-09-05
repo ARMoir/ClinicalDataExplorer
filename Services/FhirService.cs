@@ -10,6 +10,56 @@ public sealed class FhirService(
 {
     private static readonly XNamespace Fhir = "http://hl7.org/fhir";
 
+    public async Task<ServerInformation> GetServerInformationAsync(CancellationToken cancellationToken = default)
+    {
+        var xml = await GetXmlAsync("metadata?_format=xml", cancellationToken);
+        var document = ParseDocument(xml);
+        if (document.Root?.Name != Fhir + "CapabilityStatement")
+            throw new InvalidOperationException("The server did not return its capability statement.");
+        var types = document.Root.Elements(Fhir + "rest").Where(r => Value(r, "mode") == "server")
+            .Elements(Fhir + "resource")
+            .Where(r => r.Elements(Fhir + "interaction").Any(i => Value(i, "code") == "search-type"))
+            .Select(r => Value(r, "type")).Where(ResourcePresentation.IsReference).Distinct(StringComparer.Ordinal)
+            .OrderBy(ResourcePresentation.Label).ToList();
+        return new(xml, types);
+    }
+
+    public async Task<ReferencePage> GetTerminologyInformationAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var xml = await GetXmlAsync("metadata?mode=terminology&_format=xml", cancellationToken);
+            var document = ParseDocument(xml);
+            if (document.Root?.Name == Fhir + "TerminologyCapabilities")
+                return new(xml, null, 1, null, "Server terminology capabilities");
+            // Some servers ignore mode and return their ordinary capability statement.
+            if (document.Root?.Name != Fhir + "CapabilityStatement")
+                throw new InvalidOperationException("The server returned an unexpected terminology response.");
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode is System.Net.HttpStatusCode.BadRequest or
+            System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.MethodNotAllowed or System.Net.HttpStatusCode.NotImplemented) { }
+        return await GetReferencePageAsync("TerminologyCapabilities", cancellationToken: cancellationToken);
+    }
+
+    public async Task<ReferencePage> GetReferencePageAsync(string resourceType, Uri? next = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!ResourcePresentation.IsReference(resourceType))
+            throw new ArgumentException("This record category belongs in the patient workspace.", nameof(resourceType));
+        var baseUri = GetBaseUri();
+        var document = ParseDocument(await GetXmlAsync(next ?? new Uri(baseUri, resourceType + "?_count=10&_format=xml"), baseUri, cancellationToken));
+        EnsureBundle(document);
+        var entries = document.Root!.Elements(Fhir + "entry").Where(e => Value(e.Element(Fhir + "search"), "mode") != "outcome").ToList();
+        if (entries.Any(e => e.Element(Fhir + "resource")?.Elements().SingleOrDefault()?.Name != Fhir + resourceType))
+            throw new InvalidOperationException("The server returned records outside the requested reference category.");
+        var nextUri = GetNextPageUri(document, baseUri);
+        if (nextUri is not null && !IsWithinConfiguredServer(nextUri, baseUri))
+            throw new InvalidOperationException("The server returned a page outside the configured connection.");
+        return new(document.ToString(SaveOptions.DisableFormatting), nextUri, entries.Count,
+            int.TryParse(Value(document.Root, "total"), out var total) && total >= 0 ? total : null,
+            resourceType == "TerminologyCapabilities" ? "Published terminology statements" : ResourcePresentation.Label(resourceType));
+    }
+
     public async Task<IReadOnlyList<PatientSummary>> GetPatientsWithRecentEncountersAsync(
         CancellationToken cancellationToken = default)
     {

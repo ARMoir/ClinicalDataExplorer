@@ -5,6 +5,7 @@ namespace ClinicalDataExplorer.Models;
 public sealed class PatientResourceSection(string resourceType, IReadOnlyList<XElement> resources)
 {
     public string ResourceType { get; } = resourceType;
+    public string Label => ResourcePresentation.Label(ResourceType);
     public IReadOnlyList<XElement> Resources { get; } = resources;
     public int Count => Resources.Count;
     public bool Expanded { get; set; }

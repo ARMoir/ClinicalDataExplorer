@@ -7,7 +7,7 @@
 
 <div class="page-header settings-page-header">
     <h1>Application Settings</h1>
-    <p>Configure the product identity, authentication, facility branding, FHIR server, and report appearance.</p>
+    <p>Configure the product identity, authentication, facility branding, data connection, and report appearance.</p>
 </div>
 
 @if (!string.IsNullOrWhiteSpace(SuccessMessage))
@@ -110,16 +110,16 @@
 
     <section class="settings-card">
         <div class="settings-card-heading">
-            <h2>FHIR Server</h2>
-            <p>The base URL used for server-side FHIR API requests. Changes take effect as soon as settings are saved.</p>
+            <h2>Data connection</h2>
+            <p>The server address used to retrieve clinical records. Changes take effect as soon as settings are saved.</p>
         </div>
 
         <div class="settings-grid">
             <div class="settings-field settings-field-wide">
-                <label for="fhirBaseUrl">FHIR base URL</label>
+                <label for="fhirBaseUrl">Server base URL</label>
                 <InputText id="fhirBaseUrl" @bind-Value="Form.FhirBaseUrl" placeholder="http://summittest:8080/" />
                 <ValidationMessage For="@(() => Form.FhirBaseUrl)" />
-                <small>Use the server root or FHIR base path, for example http://summittest:8080/ or https://server.example.org/fhir/.</small>
+                <small>Use the server root or service base path, for example http://summittest:8080/ or https://server.example.org/fhir/.</small>
             </div>
         </div>
     </section>

@@ -14,7 +14,7 @@
         </xsl:choose>
       </h2></div><span class="status-chip"><xsl:choose><xsl:when test="f:active/@value='false'">inactive</xsl:when><xsl:when test="f:active/@value='true'">active</xsl:when><xsl:otherwise>Not recorded</xsl:otherwise></xsl:choose></span></div>
       <div class="xslt-detail-grid">
-        <div><span class="label">FHIR ID</span><span class="value"><xsl:call-template name="value"><xsl:with-param name="value" select="f:id/@value"/></xsl:call-template></span></div>
+        <div><span class="label">Record ID</span><span class="value"><xsl:call-template name="value"><xsl:with-param name="value" select="f:id/@value"/></xsl:call-template></span></div>
         <div><span class="label">Date of birth</span><span class="value"><xsl:call-template name="value"><xsl:with-param name="value" select="f:birthDate/@value"/></xsl:call-template></span></div>
         <div><span class="label">Gender</span><span class="value"><xsl:call-template name="value"><xsl:with-param name="value" select="f:gender/@value"/></xsl:call-template></span></div>
         <div><span class="label">Phone</span><span class="value"><xsl:call-template name="value"><xsl:with-param name="value" select="f:telecom[f:system/@value='phone'][1]/f:value/@value"/></xsl:call-template></span></div>

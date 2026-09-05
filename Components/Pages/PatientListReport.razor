@@ -6,7 +6,7 @@
 
 <PageTitle>@($"{SettingsService.Current.ProductName} - Patient List Report")</PageTitle>
 <h1>Patient List Report</h1>
-<p class="report-description">Search by identifier and render the resulting FHIR Patient Bundle through <code>PatientList.xslt</code>.</p>
+<p class="report-description">Search by identifier to create a customizable patient list report.</p>
 <section class="search-card"><label for="report-patient-id">Patient identifier</label><div class="search-row"><input id="report-patient-id" @bind="Identifier" @bind:event="oninput" @onkeydown="HandleKeyDown"/><button @onclick="LoadAsync" disabled="@(Loading || string.IsNullOrWhiteSpace(Identifier))">@(Loading ? "Loading..." : "Create report")</button></div></section>
 @if (ErrorMessage is not null) { <div class="error-card" role="alert">@ErrorMessage</div> }
 @if (!string.IsNullOrWhiteSpace(ReportHtml)) { <div class="report-page-actions"><button class="secondary-button" onclick="window.print()">Print</button></div>@((MarkupString)ReportHtml) }

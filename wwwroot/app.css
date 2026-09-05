@@ -510,3 +510,57 @@ button:disabled { opacity: .55; cursor: default; }
 .resource-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; color: #566573; font-size: 13px; margin-bottom: 14px; }
 .resource-all-fields summary { cursor: pointer; color: var(--primary-color); font-size: 13px; font-weight: 650; padding: 8px 0; }
 .xslt-detail-grid .value small { display: block; color: #566573; }
+
+/* Shared reference information stays out of the clinical workspace until opened. */
+.shell { min-height: 100vh; display: flex; flex-direction: column; }
+.shell > main { width: 100%; flex: 1; }
+.system-footer { border-top: 1px solid #dfe4e8; background: #fff; color: var(--secondary-color); }
+.system-footer-bar, .system-footer-content { max-width: 1180px; margin: 0 auto; padding: 20px 24px; }
+.system-footer-bar { display: flex; justify-content: space-between; gap: 20px; align-items: center; font-size: 13px; }
+.system-footer-bar > span { color: #566573; }
+.system-footer-content { border-top: 1px solid #edf0f2; }
+.system-footer-content h2 { margin-top: 0; }
+.system-footer-content > p { color: #566573; }
+.system-footer-tabs { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0; }
+.system-footer-tabs [aria-pressed=true] { background: var(--primary-color); color: #fff; border-color: var(--primary-color); }
+.system-footer-content > label { display: block; margin: 10px 0 6px; font-weight: 650; }
+.system-footer-content > select { max-width: 100%; min-width: 240px; }
+.reference-record { border: 1px solid #dfe4e8; border-radius: 8px; padding: 18px; margin: 12px 0; overflow-wrap: anywhere; }
+.reference-record h3 { margin: 0 0 12px; color: var(--primary-color); }
+.reference-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+.reference-summary dt { color: #566573; font-size: 12px; margin-bottom: 5px; }
+.reference-summary dd { margin: 0; font-size: 14px; }
+.reference-record summary { color: var(--primary-color); font-weight: 650; cursor: pointer; padding: 8px 0; }
+.reference-source { font-size: 13px; }
+.reference-details { max-height: 600px; overflow: auto; }
+@media (max-width: 650px) { .system-footer-bar { flex-direction: column; align-items: stretch; } .system-footer-tabs > button { flex: 1 1 45%; } }
+@media print { .system-footer { display: none !important; } }
+
+/* Brand-led header with navigation, account identity and Settings on the right. */
+.topbar { min-height: 78px; }
+.topbar-inner { max-width: none; padding-left: max(0px, calc((100vw - 1180px) / 2)); }
+.topbar-left { flex: 0 1 auto; }
+.topbar-right { display: flex; align-items: center; justify-content: flex-end; gap: 20px; min-width: 0; }
+.facility-logo { height: 48px; max-width: 180px; }
+.brand-text strong { font-size: 22px; }
+.brand-text span { font-size: 14px; }
+.topnav { flex: 0 0 auto; gap: 12px; }
+.topnav a, .settings-link { font-size: 14px; white-space: nowrap; }
+.settings-link { color: white; padding: 8px 6px; border-radius: 6px; text-decoration: none; }
+.settings-link:hover { background: rgba(255,255,255,.12); }
+.topbar-right .user-identity { border-right: 0; border-left: 1px solid rgba(255,255,255,.18); padding: 0 0 0 20px; min-width: 130px; max-width: 220px; }
+.user-identity-label { font-size: 11px; }
+.user-identity-full { font-size: 11px; }
+@media (max-width: 1200px) { .topbar-inner { padding-left: 0; } .topbar-right { gap: 12px; } .topnav { gap: 4px; } }
+@media (max-width: 1000px) {
+    .topbar-inner { flex-wrap: wrap; gap: 16px; }
+    .topbar-right { flex: 1 1 auto; flex-wrap: wrap; }
+}
+@media (max-width: 760px) {
+    .topbar-inner { align-items: stretch; }
+    .topbar-right { justify-content: space-between; }
+    .topbar-right .topnav { width: 100%; flex-wrap: wrap; }
+    .topbar-right .user-identity { border-left: 0; padding-left: 0; max-width: calc(100% - 90px); }
+    .facility-logo { max-width: 160px; height: 42px; }
+    .brand-text strong { font-size: 20px; }
+}

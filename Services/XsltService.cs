@@ -11,7 +11,7 @@ public sealed class XsltService(IWebHostEnvironment environment)
     private static readonly HashSet<string> AllowedTemplates = new(StringComparer.OrdinalIgnoreCase)
     {
         "PatientList", "PatientDetails", "EncounterList", "EncounterDetails",
-        "ObservationList", "DiagnosticReportBundle", "PatientResources"
+        "ObservationList", "DiagnosticReportBundle", "PatientResources", "ServerInformation"
     };
 
     private readonly ConcurrentDictionary<string, CachedTransform> _cache = new(StringComparer.OrdinalIgnoreCase);

@@ -21,7 +21,7 @@
         <xsl:apply-templates select="f:Bundle" />
       </xsl:when>
       <xsl:otherwise>
-        <div class="fhir-empty">The response is not a FHIR Bundle.</div>
+        <div class="fhir-empty">The server did not return a valid report response.</div>
       </xsl:otherwise>
     </xsl:choose>
   </xsl:template>
@@ -49,7 +49,7 @@
 
           <div class="report-title-row">
             <div>
-              <div class="eyebrow">FHIR DIAGNOSTIC REPORT</div>
+              <div class="eyebrow">DIAGNOSTIC REPORT</div>
               <h2>
                 <xsl:choose>
                   <xsl:when test="$report/f:code/f:text/@value"><xsl:value-of select="$report/f:code/f:text/@value" /></xsl:when>
@@ -62,7 +62,7 @@
           </div>
 
           <div class="report-grid">
-            <div class="field"><span class="label">FHIR ID</span><span class="value"><xsl:value-of select="$report/f:id/@value" /></span></div>
+            <div class="field"><span class="label">Record ID</span><span class="value"><xsl:value-of select="$report/f:id/@value" /></span></div>
             <div class="field"><span class="label">Identifier</span><span class="value"><xsl:value-of select="$report/f:identifier[1]/f:value/@value" /></span></div>
             <div class="field"><span class="label">Subject</span><span class="value"><xsl:value-of select="$report/f:subject/f:reference/@value" /></span></div>
             <div class="field"><span class="label">Encounter</span><span class="value"><xsl:value-of select="$report/f:encounter/f:reference/@value" /></span></div>
@@ -118,7 +118,7 @@
           </details>
         </xsl:when>
         <xsl:otherwise>
-          <div class="fhir-empty">The FHIR search succeeded, but the Bundle contains no DiagnosticReport.</div>
+          <div class="fhir-empty">The search succeeded, but no diagnostic reports were returned.</div>
         </xsl:otherwise>
       </xsl:choose>
     </div>

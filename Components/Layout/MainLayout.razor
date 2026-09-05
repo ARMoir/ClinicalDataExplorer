@@ -7,6 +7,26 @@
     <header class="topbar">
         <div class="topbar-inner">
             <div class="topbar-left">
+
+
+                <a class="brand" href="/">
+                    @if (!string.IsNullOrWhiteSpace(Settings.LogoPath))
+                    {
+                        <img class="facility-logo" src="@Settings.LogoPath" alt="@($"{Settings.FacilityName} logo")" />
+                    }
+                    <span class="brand-text">
+                        <strong>@Settings.FacilityName</strong>
+                        <span>@Settings.ProductName</span>
+                    </span>
+                </a>
+            </div>
+
+            <div class="topbar-right">
+                <nav class="topnav" aria-label="Main navigation">
+                    <a href="/">Patients</a>
+                    <a href="/patient-list-report">Patient report</a>
+                    <a href="/diagnostic-report">Diagnostic report</a>
+                </nav>
                 <AuthorizeView>
                     <Authorized Context="authState">
                         <div class="user-identity" title="Authenticated Windows identity">
@@ -26,31 +46,15 @@
                         }
                     </NotAuthorized>
                 </AuthorizeView>
-
-                <a class="brand" href="/">
-                    @if (!string.IsNullOrWhiteSpace(Settings.LogoPath))
-                    {
-                        <img class="facility-logo" src="@Settings.LogoPath" alt="@($"{Settings.FacilityName} logo")" />
-                    }
-                    <span class="brand-text">
-                        <strong>@Settings.FacilityName</strong>
-                        <span>@Settings.ProductName</span>
-                    </span>
-                </a>
+                <a class="settings-link" href="/settings">Settings</a>
             </div>
-
-            <nav class="topnav" aria-label="Main navigation">
-                <a href="/">Patients</a>
-                <a href="/patient-list-report">Patient report</a>
-                <a href="/diagnostic-report">Diagnostic report</a>
-                <a href="/settings">Settings</a>
-            </nav>
         </div>
     </header>
 
     <main>
         @Body
     </main>
+    <SystemFooter @key="Settings.FhirBaseUrl" />
 </div>
 
 @code {

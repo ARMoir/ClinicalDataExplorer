@@ -119,7 +119,7 @@ public sealed class PatientExplorerTests
         Assert.Contains("Not recorded", html);
     }
 
-    private static string Transform(string template, string xml)
+    internal static string Transform(string template, string xml)
     {
         var root = new DirectoryInfo(AppContext.BaseDirectory);
         while (root is not null && !Directory.Exists(Path.Combine(root.FullName, "XSLT"))) root = root.Parent;

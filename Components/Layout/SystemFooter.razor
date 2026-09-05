@@ -1,0 +1,142 @@
+@namespace ClinicalDataExplorer.Components.Layout
+@implements IDisposable
+@inject FhirService DataService
+@inject XsltService XsltService
+@inject ApplicationSettingsService SettingsService
+
+<footer class="system-footer" aria-label="System and reference information">
+    <div class="system-footer-bar">
+        <span>@SettingsService.Current.FacilityName · @SettingsService.Current.ProductName</span>
+        <button class="secondary-button" aria-expanded="@(Expanded ? "true" : "false")" aria-controls="system-information" @onclick="ToggleFooterAsync">System &amp; reference information <span aria-hidden="true">@(Expanded ? "−" : "+")</span></button>
+    </div>
+    @if (Expanded)
+    {
+        <div id="system-information" class="system-footer-content">
+            <h2>System &amp; reference information</h2>
+            <p>Explore the connected server, terminology services, and shared reference records.</p>
+            <nav class="system-footer-tabs" aria-label="System information views">
+                <button class="secondary-button" aria-pressed="@(Active == "server" ? "true" : "false")" disabled="@Busy" @onclick='() => SelectPaneAsync("server")'>Server information</button>
+                <button class="secondary-button" aria-pressed="@(Active == "terminology" ? "true" : "false")" disabled="@Busy" @onclick='() => SelectPaneAsync("terminology")'>Terminology services</button>
+                <button class="secondary-button" aria-pressed="@(Active == "reference" ? "true" : "false")" disabled="@Busy" @onclick='() => SelectPaneAsync("reference")'>Reference library</button>
+                <button class="secondary-button" disabled="@Busy" @onclick="RefreshAsync">Refresh this view</button>
+            </nav>
+            @if (Active == "reference")
+            {
+                <label for="reference-category">Record category</label>
+                <select id="reference-category" @bind="SelectedType" @bind:after="ChangeCategoryAsync" disabled="@(Busy || ReferenceTypes.Count == 0)">
+                    <option value="">Choose a category</option>
+                    @foreach (var type in ReferenceTypes) { <option value="@type">@ResourcePresentation.Label(type)</option> }
+                </select>
+                @if (ReferenceTypes.Count == 0 && !Busy)
+                { <p>No searchable reference categories were advertised. Use Server information to check the connection or refresh its capabilities.</p> }
+                <p class="search-help">Shared directories, terminology, forms, and definitions advertised by this server. Patient records are available through patient reports.</p>
+            }
+            @if (Busy) { <div class="empty-state" role="status">Loading @ViewTitle.ToLowerInvariant()…</div> }
+            @if (Current.Error is not null)
+            {
+                <div class="error-card" role="alert"><strong>@ViewTitle unavailable</strong><p>@Current.Error</p><p>This does not affect the patient view. You can refresh this section to try again.</p></div>
+            }
+            @if (!Busy && Current.Pages.Count > 0)
+            {
+                var result = Current.Pages[Current.Page];
+                <p class="reference-source">@result.Source @(result.Total is int total ? $"· {total} records reported by the server" : "")</p>
+                @if (result.Count == 0) { <div class="empty-state">No records were returned on this page.</div> }
+                else { @((MarkupString)Current.Html) }
+                @if (Current.Pages.Count > 1 || result.Next is not null)
+                {
+                    <nav class="pagination" aria-label="Reference record pages">
+                        <button class="secondary-button" disabled="@(Current.Page == 0)" @onclick="PreviousPage">← Previous</button>
+                        <span>Page @(Current.Page + 1) · @result.Count records on this page</span>
+                        <button class="secondary-button" disabled="@(Current.Page + 1 >= Current.Pages.Count && result.Next is null)" @onclick="NextPageAsync">Next →</button>
+                    </nav>
+                }
+            }
+        </div>
+    }
+</footer>
+
+@code {
+    private readonly CancellationTokenSource Cancellation = new();
+    private readonly Dictionary<string, Pane> Panes = new() { ["server"] = new(), ["terminology"] = new(), ["reference"] = new() };
+    private IReadOnlyList<string> ReferenceTypes = [];
+    private string Active = "server", SelectedType = "";
+    private bool Expanded, Busy;
+    private Pane Current => Panes[Active];
+    private string ViewTitle => Active switch { "server" => "Server information", "terminology" => "Terminology services", _ => "Reference library" };
+    private async Task ToggleFooterAsync()
+    {
+        Expanded = !Expanded;
+        if (Expanded && !Current.Loaded && !Busy) await LoadAsync();
+    }
+    private async Task SelectPaneAsync(string pane)
+    {
+        Active = pane;
+        if (!Current.Loaded) await LoadAsync();
+    }
+    private async Task ChangeCategoryAsync() { Panes["reference"] = new(); await LoadAsync(); }
+    private async Task RefreshAsync()
+    {
+        Panes[Active] = new();
+        if (Active == "server") { ReferenceTypes = []; SelectedType = ""; Panes["reference"] = new(); }
+        await LoadAsync();
+    }
+    private async Task LoadAsync()
+    {
+        if (Active == "reference" && SelectedType.Length == 0) return;
+        Busy = true;
+        var pane = Current;
+        pane.Error = null;
+        try
+        {
+            ReferencePage result;
+            if (Active == "server")
+            {
+                var information = await DataService.GetServerInformationAsync(Cancellation.Token);
+                ReferenceTypes = information.ReferenceTypes;
+                result = new(information.Xml, null, 1, null, "Connected server capabilities");
+            }
+            else if (Active == "terminology") result = await DataService.GetTerminologyInformationAsync(Cancellation.Token);
+            else result = await DataService.GetReferencePageAsync(SelectedType, cancellationToken: Cancellation.Token);
+            pane.Pages.Add(result); pane.Loaded = true; Render();
+        }
+        catch (OperationCanceledException) when (Cancellation.IsCancellationRequested) { }
+        catch (Exception ex) { pane.Error = FriendlyError(ex); }
+        finally { Busy = false; }
+    }
+    private void Render() => Current.Html = XsltService.Transform("ServerInformation", Current.Pages[Current.Page].Xml,
+        SettingsService.Current, new Dictionary<string, string> { ["viewTitle"] = Active == "reference" ? ResourcePresentation.Label(SelectedType) : ViewTitle });
+    private void PreviousPage() { Current.Page--; Render(); }
+    private async Task NextPageAsync()
+    {
+        if (Current.Page + 1 < Current.Pages.Count) { Current.Page++; Render(); return; }
+        var next = Current.Pages[Current.Page].Next;
+        if (next is null) return;
+        Busy = true; Current.Error = null;
+        try
+        {
+            if (Current.Pages.Count >= 100 || Current.Visited.Contains(next.AbsoluteUri))
+                throw new InvalidOperationException("The server's paging limit was reached or it repeated a page link.");
+            var page = await DataService.GetReferencePageAsync(Active == "terminology" ? "TerminologyCapabilities" : SelectedType, next, Cancellation.Token);
+            Current.Visited.Add(next.AbsoluteUri); Current.Pages.Add(page); Current.Page++; Render();
+        }
+        catch (OperationCanceledException) when (Cancellation.IsCancellationRequested) { }
+        catch (Exception ex) { Current.Error = FriendlyError(ex); }
+        finally { Busy = false; }
+    }
+    private static string FriendlyError(Exception error) => error switch
+    {
+        HttpRequestException { StatusCode: System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.MethodNotAllowed or System.Net.HttpStatusCode.NotImplemented } => "This information is not published by the connected server.",
+        HttpRequestException { StatusCode: System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden } => "Your connection does not have permission to read this information.",
+        _ => error.Message.Replace("FHIR", "clinical data")
+    };
+    public void Dispose() { Cancellation.Cancel(); Cancellation.Dispose(); }
+    private sealed class Pane
+    {
+        public List<ReferencePage> Pages { get; } = [];
+        public HashSet<string> Visited { get; } = new(StringComparer.Ordinal);
+        public int Page { get; set; }
+        public bool Loaded { get; set; }
+        public string Html { get; set; } = "";
+        public string? Error { get; set; }
+    }
+}
