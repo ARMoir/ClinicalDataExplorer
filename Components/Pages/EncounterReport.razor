@@ -1,0 +1,35 @@
+@namespace ClinicalDataExplorer.Components.Pages
+@page "/encounter/{EncounterId}"
+@inject FhirService FhirService
+@inject XsltService XsltService
+@inject ApplicationSettingsService SettingsService
+
+<PageTitle>@($"{SettingsService.Current.ProductName} - Encounter Report")</PageTitle>
+<div class="report-page-actions"><a class="secondary-link" href="/">← Patients</a><button class="secondary-button" onclick="window.print()">Print</button></div>
+<h1>Encounter Report</h1>
+@if (Loading) { <div class="empty-state">Loading encounter report...</div> }
+else if (ErrorMessage is not null) { <div class="error-card" role="alert">@ErrorMessage</div> }
+else { @((MarkupString)EncounterHtml) @((MarkupString)ObservationHtml) }
+
+@code {
+    [Parameter] public string EncounterId { get; set; } = string.Empty;
+    private string EncounterHtml { get; set; } = string.Empty;
+    private string ObservationHtml { get; set; } = string.Empty;
+    private string? ErrorMessage { get; set; }
+    private bool Loading { get; set; } = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Loading = true; ErrorMessage = null;
+        try
+        {
+            var encounterTask = FhirService.GetEncounterXmlAsync(EncounterId);
+            var observationsTask = FhirService.GetEncounterObservationBundleXmlAsync(EncounterId);
+            await Task.WhenAll(encounterTask, observationsTask);
+            EncounterHtml = XsltService.Transform("EncounterDetails", encounterTask.Result, SettingsService.Current);
+            ObservationHtml = XsltService.Transform("ObservationList", observationsTask.Result, SettingsService.Current);
+        }
+        catch (Exception ex) { ErrorMessage = ex.Message; }
+        finally { Loading = false; }
+    }
+}

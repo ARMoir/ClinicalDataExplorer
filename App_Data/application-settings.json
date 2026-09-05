@@ -1,7 +1,8 @@
 {
+  "ProductName": "Clinical Data Explorer",
   "FacilityName": "Reports",
-  "FhirBaseUrl": "http://summittest:8080/",
-   "AuthenticationMode": "Windows",
+  "FhirBaseUrl": "https://hapi.fhir.org/baseR4/",
+  "AuthenticationMode": "Windows",
   "WindowsDomain": "",
   "LogoPath": "/uploads/facility-logo-20260904152646666.png",
   "PrimaryColor": "#113B75",

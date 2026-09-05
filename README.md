@@ -1,6 +1,18 @@
 # Clinical Data Explorer
 
-Production-oriented .NET 10 Blazor Web App foundation for exploring clinical data from a FHIR server. The current report view retrieves a `DiagnosticReport` search Bundle, includes result Observations and performer resources, and displays both a formatted HTML report and syntax-highlighted raw XML.
+Production-oriented .NET 10 Blazor Web App foundation for exploring clinical data from a FHIR server. The main page lists the 10 most recently updated patients, supports Patient identifier searches, and loads the complete paged Encounter history for a selected patient.
+
+## Patient explorer
+
+The main page uses standard FHIR searches:
+
+- `Encounter?_sort=-date&_include=Encounter:patient` to find the 10 distinct patients with the most recent encounters
+- `Patient?identifier=...` to search across patient identifiers
+- `Encounter?patient=...&_sort=-date` for the selected patient's encounters
+- `Observation?encounter=...&_summary=count` for encounter observation counts
+- `Observation?encounter=...&_sort=-date` to open an encounter's complete observation list
+
+Encounter Bundle pagination links are followed automatically, while paging is restricted to the configured FHIR server.
 
 ## Run
 
@@ -49,14 +61,23 @@ The branding is used by the shared application header and is also passed into `D
 
 ## Report formatting
 
-`XSLT/DiagnosticReportBundle.xslt` handles a FHIR search `Bundle`, separates long/multiline `Observation.valueString` content from ordinary result Observations, and applies generic narrative formatting. The stylesheet receives these application parameters:
+Clinical presentation is customizable through six XSLT templates:
+
+- `PatientList.xslt`
+- `PatientDetails.xslt`
+- `EncounterList.xslt`
+- `EncounterDetails.xslt`
+- `ObservationList.xslt`
+- `DiagnosticReportBundle.xslt`
+
+The dashboard handles interactive workflow in Razor, while dedicated patient, encounter, observation, and diagnostic-report views render FHIR XML through these templates. Each stylesheet receives these application parameters:
 
 - `facilityName`
 - `logoPath`
 - `primaryColor`
 - `secondaryColor`
 
-The XSLT is compiled once when the application starts. Application branding remains runtime-configurable because values are passed through `XsltArgumentList` for each transformation.
+Stylesheets are compiled on first use and automatically reloaded when their file timestamp changes. They can therefore be customized without recompiling or restarting the application. Scripts, DTDs, external resolvers, and the XSLT `document()` function remain disabled.
 
 ## Provider name resolution
 

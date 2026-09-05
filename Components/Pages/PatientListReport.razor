@@ -1,0 +1,28 @@
+@namespace ClinicalDataExplorer.Components.Pages
+@page "/patient-list-report"
+@inject FhirService FhirService
+@inject XsltService XsltService
+@inject ApplicationSettingsService SettingsService
+
+<PageTitle>@($"{SettingsService.Current.ProductName} - Patient List Report")</PageTitle>
+<h1>Patient List Report</h1>
+<p class="report-description">Search by identifier and render the resulting FHIR Patient Bundle through <code>PatientList.xslt</code>.</p>
+<section class="search-card"><label for="report-patient-id">Patient identifier</label><div class="search-row"><input id="report-patient-id" @bind="Identifier" @bind:event="oninput" @onkeydown="HandleKeyDown"/><button @onclick="LoadAsync" disabled="@(Loading || string.IsNullOrWhiteSpace(Identifier))">@(Loading ? "Loading..." : "Create report")</button></div></section>
+@if (ErrorMessage is not null) { <div class="error-card" role="alert">@ErrorMessage</div> }
+@if (!string.IsNullOrWhiteSpace(ReportHtml)) { <div class="report-page-actions"><button class="secondary-button" onclick="window.print()">Print</button></div>@((MarkupString)ReportHtml) }
+
+@code {
+    private string Identifier { get; set; } = string.Empty;
+    private string ReportHtml { get; set; } = string.Empty;
+    private string? ErrorMessage { get; set; }
+    private bool Loading { get; set; }
+    private async Task HandleKeyDown(KeyboardEventArgs args) { if (args.Key == "Enter") await LoadAsync(); }
+    private async Task LoadAsync()
+    {
+        if (Loading || string.IsNullOrWhiteSpace(Identifier)) return;
+        Loading = true; ErrorMessage = null; ReportHtml = string.Empty;
+        try { ReportHtml = XsltService.Transform("PatientList", await FhirService.SearchPatientBundleXmlAsync(Identifier), SettingsService.Current); }
+        catch (Exception ex) { ErrorMessage = ex.Message; }
+        finally { Loading = false; }
+    }
+}
