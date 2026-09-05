@@ -14,4 +14,7 @@ public sealed record PatientSummary(
     public string? Phone { get; init; }
     public string? Email { get; init; }
     public string? Address { get; init; }
+    public IReadOnlyList<PractitionerAssociation> Practitioners { get; init; } = [];
+    public PractitionerAssociationStatus PractitionerStatus { get; init; }
+    public string? PractitionerLookupError { get; init; }
 }

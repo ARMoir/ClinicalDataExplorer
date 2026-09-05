@@ -4,7 +4,7 @@ using ClinicalDataExplorer.Models;
 
 namespace ClinicalDataExplorer.Services;
 
-public sealed class FhirService(
+public sealed partial class FhirService(
     IHttpClientFactory httpClientFactory,
     ApplicationSettingsService settingsService)
 {
@@ -150,6 +150,7 @@ public sealed class FhirService(
         var xml = await GetAllBundlePagesAsync("Patient/" + Uri.EscapeDataString(RequireId(patientId, "patient")) +
             "/$everything?_count=100&_format=xml", cancellationToken);
         var document = ParseDocument(xml);
+        await ResolvePractitionerReferencesAsync(document, cancellationToken);
         return document.Root!.Elements(Fhir + "entry").Select(e => e.Element(Fhir + "resource")?.Elements().FirstOrDefault())
             .Where(r => r is not null && r.Name != Fhir + "OperationOutcome")
             .Select(r => r!).GroupBy(r => r.Name == Fhir + "Observation" &&
@@ -232,8 +233,8 @@ public sealed class FhirService(
     public Task<string> GetPatientXmlAsync(string patientId, CancellationToken cancellationToken = default) =>
         GetResourceXmlAsync("Patient", patientId, cancellationToken);
 
-    public Task<string> GetEncounterXmlAsync(string encounterId, CancellationToken cancellationToken = default) =>
-        GetResourceXmlAsync("Encounter", encounterId, cancellationToken);
+    public async Task<string> GetEncounterXmlAsync(string encounterId, CancellationToken cancellationToken = default) =>
+        await AddPractitionerPresentationAsync(await GetResourceXmlAsync("Encounter", encounterId, cancellationToken), cancellationToken);
 
     public Task<string> GetPatientEncounterBundleXmlAsync(string patientId, CancellationToken cancellationToken = default) =>
         GetAllBundlePagesAsync(
@@ -241,11 +242,11 @@ public sealed class FhirService(
             "&_sort=-date&_count=100&_format=xml",
             cancellationToken);
 
-    public Task<string> GetEncounterObservationBundleXmlAsync(string encounterId, CancellationToken cancellationToken = default) =>
-        GetAllBundlePagesAsync(
+    public async Task<string> GetEncounterObservationBundleXmlAsync(string encounterId, CancellationToken cancellationToken = default) =>
+        await AddPractitionerPresentationAsync(await GetAllBundlePagesAsync(
             "Observation?encounter=" + Uri.EscapeDataString(RequireId(encounterId, "encounter")) +
             "&_sort=-date&_count=100&_format=xml",
-            cancellationToken);
+            cancellationToken), cancellationToken);
 
     public Task<string> SearchPatientBundleXmlAsync(string identifier, CancellationToken cancellationToken = default) =>
         GetAllBundlePagesAsync(
@@ -279,7 +280,7 @@ public sealed class FhirService(
         var baseUri = GetBaseUri();
         var requestUri = new Uri(baseUri, relativeUrl);
         var body = await GetAllBundlePagesAsync(requestUri, baseUri, cancellationToken);
-        return new FhirResponse(requestUri.ToString(), body);
+        return new FhirResponse(requestUri.ToString(), await AddPractitionerPresentationAsync(body, cancellationToken));
     }
 
     private async Task<string> GetXmlAsync(string relativeUrl, CancellationToken cancellationToken)

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:f="http://hl7.org/fhir" exclude-result-prefixes="f">
+<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:f="http://hl7.org/fhir" xmlns:p="urn:clinical-data-explorer:presentation" exclude-result-prefixes="f p">
   <xsl:output method="html" omit-xml-declaration="yes"/>
   <xsl:param name="facilityName"/><xsl:param name="logoPath"/><xsl:param name="primaryColor"/><xsl:param name="secondaryColor"/>
   <xsl:param name="resourceLabel">Record</xsl:param>
@@ -252,6 +252,7 @@
   <xsl:template match="*" mode="highlight-label"><xsl:value-of select="local-name()"/></xsl:template>
   <xsl:template match="*" mode="readable">
     <xsl:choose>
+      <xsl:when test="@p:provider"><xsl:value-of select="@p:provider"/></xsl:when>
       <xsl:when test="@value"><xsl:value-of select="@value"/></xsl:when>
       <xsl:when test="f:text/@value"><xsl:value-of select="f:text/@value"/></xsl:when>
       <xsl:when test="f:display/@value"><xsl:value-of select="f:display/@value"/></xsl:when>
@@ -268,7 +269,8 @@
        Narrative is rendered as text; server-provided HTML and URLs are never executed. -->
   <xsl:template match="*" mode="field">
     <div class="resource-field"><dt><xsl:value-of select="local-name()"/></dt><dd>
-      <xsl:for-each select="@*"><span class="field-value"><xsl:if test="local-name() != 'value'"><strong><xsl:value-of select="local-name()"/>: </strong></xsl:if><xsl:value-of select="."/></span></xsl:for-each>
+      <xsl:if test="@p:provider"><span class="field-value"><strong>Provider: </strong><xsl:value-of select="@p:provider"/></span></xsl:if>
+      <xsl:for-each select="@*[namespace-uri() != 'urn:clinical-data-explorer:presentation']"><span class="field-value"><xsl:if test="local-name() != 'value'"><strong><xsl:value-of select="local-name()"/>: </strong></xsl:if><xsl:value-of select="."/></span></xsl:for-each>
       <xsl:choose><xsl:when test="namespace-uri()='http://www.w3.org/1999/xhtml'"><span><xsl:value-of select="."/></span></xsl:when><xsl:when test="*"><dl><xsl:apply-templates select="*" mode="field"/></dl></xsl:when><xsl:otherwise><xsl:value-of select="text()"/></xsl:otherwise></xsl:choose>
     </dd></div>
   </xsl:template>

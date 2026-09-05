@@ -1,11 +1,12 @@
 @namespace ClinicalDataExplorer.Components
+@inject IWebHostEnvironment HostEnvironment
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
-    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="@AppStylesheetUrl" />
     <HeadOutlet @rendermode="InteractiveServer" />
 </head>
 <body>
@@ -13,3 +14,8 @@
     <script src="_framework/blazor.web.js"></script>
 </body>
 </html>
+
+@code {
+    // A changed stylesheet gets a new URL so browsers do not retain old layout rules.
+    private string AppStylesheetUrl => $"app.css?v={HostEnvironment.WebRootFileProvider.GetFileInfo("app.css").LastModified.UtcTicks}";
+}

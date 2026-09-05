@@ -49,7 +49,31 @@
                             <div><dt>Date of birth</dt><dd>@Display(patient.BirthDate)</dd></div><div><dt>Gender</dt><dd>@Display(patient.Gender)</dd></div>
                             <div><dt>Phone</dt><dd>@Display(patient.Phone)</dd></div><div><dt>@(IsSearch ? "Last updated" : "Latest encounter")</dt><dd>@((IsSearch ? patient.LastUpdated : patient.MostRecentEncounter)?.ToLocalTime().ToString("MMM d, yyyy") ?? "Not recorded")</dd></div>
                             <div class="directory-address"><dt>Address</dt><dd>@Display(patient.Address)</dd></div><div><dt>Email</dt><dd>@Display(patient.Email)</dd></div><div><dt>Record ID</dt><dd>@patient.Id</dd></div>
-                        </dl><span class="patient-open">Open patient report →</span>
+                        </dl>
+                        <div class="patient-providers">
+                            <strong class="patient-providers-label">Associated providers:</strong>
+                            @if (patient.PractitionerLookupError is not null) { <p class="provider-lookup-error">@patient.PractitionerLookupError</p> }
+                            @if (patient.Practitioners.Count == 0 && patient.PractitionerLookupError is null) { <span>No practitioner references returned.</span> }
+                            @foreach (var provider in patient.Practitioners)
+                            {
+                                <div class="patient-provider">
+                                    <h4 class="provider-name">@provider.Name</h4>
+                                    <p class="provider-reference"><strong>Record reference:</strong> @provider.Reference</p>
+                                    @foreach (var identifier in provider.Identifiers)
+                                    {
+                                        <div class="provider-identifier">
+                                            <div><strong>@(string.IsNullOrWhiteSpace(identifier.Label) ? "Identifier" : identifier.Label):</strong> @identifier.Value</div>
+                                            @if (!identifier.IsResourceId)
+                                            {
+                                                <div class="provider-system">@(string.IsNullOrWhiteSpace(identifier.System) ? "Issuing system not recorded" : identifier.System)</div>
+                                            }
+                                        </div>
+                                    }
+                                    @if (provider.IsResolved && provider.Identifiers.Count == 0) { <p class="provider-empty">No identifiers recorded.</p> }
+                                </div>
+                            }
+                        </div>
+                        <span class="patient-open">Open patient report →</span>
                     </a>
                 }
             </div>
@@ -109,7 +133,12 @@
         while (patients.Count < 10 && await Iterator!.MoveNextAsync()) patients.Add(Iterator.Current);
         HasMore = patients.Count == 10 && await Iterator!.MoveNextAsync();
         if (HasMore) Lookahead = Iterator!.Current;
-        Pages.Add(patients);
+        // Bound concurrent full-record requests; enrich only the visible page,
+        // not the lookahead patient or the rest of the search result set.
+        var enriched = new List<PatientSummary>();
+        foreach (var batch in patients.Chunk(3))
+            enriched.AddRange(await Task.WhenAll(batch.Select(p => FhirService.AddPatientPractitionersAsync(p, Cancellation.Token))));
+        Pages.Add(enriched);
     }
     private void PreviousPage() { if (Page > 0) Page--; }
     private async Task NextPageAsync()

@@ -2,7 +2,8 @@
 <xsl:stylesheet version="1.0"
     xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
     xmlns:f="http://hl7.org/fhir"
-    exclude-result-prefixes="f">
+    xmlns:p="urn:clinical-data-explorer:presentation"
+    exclude-result-prefixes="f p">
 
   <xsl:output method="html" omit-xml-declaration="yes" encoding="UTF-8" />
 
@@ -302,7 +303,8 @@
     <xsl:variable name="roleOrganization" select="/f:Bundle/f:entry/f:resource/f:Organization[concat('Organization/', f:id/@value) = $roleOrganizationRef][1]" />
 
     <xsl:choose>
-      <!-- Best case: the source Reference already supplied a display name. -->
+      <xsl:when test="$performer/@p:provider"><xsl:value-of select="$performer/@p:provider" /></xsl:when>
+      <!-- Source display remains a fallback when no practitioner is referenced. -->
       <xsl:when test="$performer/f:display/@value">
         <xsl:value-of select="$performer/f:display/@value" />
       </xsl:when>
