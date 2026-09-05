@@ -1,6 +1,6 @@
 # Clinical Data Explorer
 
-Production-oriented .NET 10 Blazor Web App foundation for exploring clinical data from a FHIR server. The main page lists the 10 most recently updated patients, supports Patient identifier searches, and loads the complete paged Encounter history for a selected patient.
+Production-oriented .NET 10 Blazor Web App for exploring clinical data from a FHIR server. The centered patient directory shows 10 patients per page, ordered by most recent encounter, with identifier/MRN and last/first-name search. Selecting a patient opens a branded, customizable report with demographics and expandable resource sections.
 
 ## Patient explorer
 
@@ -8,6 +8,8 @@ The main page uses standard FHIR searches:
 
 - `Encounter?_sort=-date&_include=Encounter:patient` to find the 10 distinct patients with the most recent encounters
 - `Patient?identifier=...` to search across patient identifiers
+- `Patient?family=...&given=...` to search by last name, first name, or both
+- `Patient/[id]/$everything` to retrieve patient records and supporting resources across all result pages
 - `Encounter?patient=...&_sort=-date` for the selected patient's encounters
 - `Observation?encounter=...&_summary=count` for encounter observation counts
 - `Observation?encounter=...&_sort=-date` to open an encounter's complete observation list
@@ -65,10 +67,11 @@ The branding is used by the shared application header and is also passed into `D
 
 ## Report formatting
 
-Clinical presentation is customizable through six XSLT templates:
+Clinical presentation is customizable through seven XSLT templates:
 
 - `PatientList.xslt`
 - `PatientDetails.xslt`
+- `PatientResources.xslt`
 - `EncounterList.xslt`
 - `EncounterDetails.xslt`
 - `ObservationList.xslt`
@@ -138,3 +141,16 @@ On the Clinical Data Explorer IIS application/site:
 4. Browse from a domain-connected workstation using Edge/Chrome. The browser normally supplies the active Windows account automatically on an intranet site.
 
 For friendly DNS names or more complex deployments, Kerberos/SPN configuration may eventually be needed. Okta/OIDC can later replace Windows authentication without changing the application's authorization/audit model.
+
+
+## Expanded patient report
+
+The patient report requires the FHIR R4 [Patient $everything operation](https://hl7.org/fhir/R4/patient-operation-everything.html). This retrieves patient-compartment records plus supporting records such as Practitioner, Organization, Medication, Device and Binary, as returned by the server for the current access context. Resource types are discovered from the response, so uncommon or additional returned types automatically receive sections. The R4 patient compartment catalog is available through **Show types with no returned records**; zero means no records returned, not proof of clinical absence.
+
+All continuation pages are loaded and resources deduplicated by case-sensitive type/id before counts are shown. Repeated paging links, links outside the configured server, non-Bundle responses, and error/fatal OperationOutcomes fail explicitly. A maximum of 100 pages / 10,000 returned resources prevents unbounded loading; exceeding the limit reports an error without presenting partial counts. Servers that do not implement `$everything` show a resource-count error while demographics remain visible. Verify this operation on the target Microsoft/HAPI deployment before relying on the expanded report.
+
+Report controls support finding sections, choosing visible sections, expanding/collapsing sections, and paging through 10 records within each section. Choices are local to the current report view. **Print visible pages** prints expanded sections and their current record pages. Counts describe complete returned resources, while contained resources and repeated nested elements remain inside their parent resource's **All FHIR fields** view.
+
+`PatientDetails.xslt` renders demographics and the configured facility logo/colors. `PatientResources.xslt` supplies resource summaries and a recursive field renderer that preserves choice values, extensions, references, contained resources and nested fields. Server-provided narratives are rendered as text rather than executable HTML; reference/attachment URLs are displayed as text. Customize these templates to change presentation without recompiling.
+
+Directory pagination follows server continuation links on demand and retains earlier pages for Previous. Recent-patient discovery deduplicates patients across encounter pages, retaining the original newest-encounter order. Identifier and name searches escape literal FHIR delimiters, follow next links, and reset to page 1 for a new search.

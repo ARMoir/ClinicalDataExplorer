@@ -47,3 +47,9 @@ Live tests run sequentially with a 30-second request timeout and a two-minute li
 Microsoft's [search documentation](https://learn.microsoft.com/en-us/azure/healthcare-apis/fhir/overview-of-search) describes backend-dependent behavior. SQL and Cosmos DB capabilities must not be treated as interchangeable. The offline tests model protocol differences, not an actual Microsoft database. The capability statement alone cannot prove sort or iterative-include support, so the live suite also executes the application's queries with strict handling. Successful execution does not prove that every referenced performer exists or is returned; the report retains its raw-reference fallback.
 
 The open-source Microsoft server is distinct from managed Azure offerings: Microsoft's [FHIR FAQ](https://github.com/MicrosoftDocs/azure-docs/blob/main/articles/healthcare-apis/azure-api-for-fhir/fhir-faq.yml) documents XML support in the open-source server and JSON-only behavior in Azure API for FHIR. A JSON-only service would require a proper FHIR serialization adapter before use with these XML reports.
+
+## Patient explorer regression coverage
+
+`PatientExplorerTests` adds offline coverage for recent-patient discovery beyond the first 10, cross-page deduplication, name and identifier escaping, continuation-based search, `$everything` grouping including supporting types, failures that must not become zero counts, server-boundary enforcement, record pagination, branding, and safe recursive XSLT rendering.
+
+Browser smoke testing can use synthetic data with 23 patients and 12 observations to exercise 10/10/3 patient pages, name search and page reset, direct navigation, record sections, 10/2 observation pages, filtering and section selection. Use a separate temporary content root/settings file for such fixtures; do not change deployed authentication or server settings.

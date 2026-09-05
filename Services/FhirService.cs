@@ -13,20 +13,33 @@ public sealed class FhirService(
     public async Task<IReadOnlyList<PatientSummary>> GetPatientsWithRecentEncountersAsync(
         CancellationToken cancellationToken = default)
     {
+        var patients = new List<PatientSummary>();
+        await foreach (var patient in StreamRecentPatientsAsync(cancellationToken))
+        {
+            patients.Add(patient);
+            if (patients.Count == 10) break;
+        }
+        return patients;
+    }
+
+    public async IAsyncEnumerable<PatientSummary> StreamRecentPatientsAsync(
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
         var baseUri = GetBaseUri();
         Uri? nextUri = new(baseUri,
             "Encounter?_sort=-date&_include=Encounter:patient&_count=100&_format=xml");
-        var patients = new List<PatientSummary>(10);
         var seenPatientIds = new HashSet<string>(StringComparer.Ordinal);
+        var seenPages = new HashSet<string>(StringComparer.Ordinal);
 
         // Encounters arrive newest-first. The first encounter seen for a patient
         // is therefore that patient's most recent encounter.
-        for (var page = 0; nextUri is not null && patients.Count < 10; page++)
+        for (var page = 0; nextUri is not null; page++)
         {
-            if (page >= 100)
+            if (page >= 100 || !seenPages.Add(nextUri.AbsoluteUri))
                 throw new InvalidOperationException("Patient discovery exceeded the 10,000-encounter safety limit.");
 
             var document = ParseDocument(await GetXmlAsync(nextUri, baseUri, cancellationToken));
+            EnsureBundle(document);
             var includedPatients = ParsePatientResources(document)
                 .GroupBy(patient => patient.Id, StringComparer.Ordinal)
                 .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
@@ -44,15 +57,60 @@ public sealed class FhirService(
                     continue;
 
                 var encounter = ToEncounter(encounterElement);
-                patients.Add(patient with { MostRecentEncounter = encounter.Start });
-                if (patients.Count == 10)
-                    break;
+                yield return patient with { MostRecentEncounter = encounter.Start };
             }
 
             nextUri = GetNextPageUri(document, baseUri);
         }
 
-        return patients;
+    }
+
+    public async IAsyncEnumerable<PatientSummary> StreamPatientSearchAsync(string? identifier, string? family,
+        string? given, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var filters = new List<string>();
+        // Escape FHIR search delimiters before URL encoding literal user input.
+        static string Encode(string value) => Uri.EscapeDataString(value.Trim().Replace("\\", "\\\\")
+            .Replace("$", "\\$").Replace(",", "\\,").Replace("|", "\\|"));
+        if (!string.IsNullOrWhiteSpace(identifier)) filters.Add("identifier=" + Encode(identifier));
+        if (!string.IsNullOrWhiteSpace(family)) filters.Add("family=" + Encode(family));
+        if (!string.IsNullOrWhiteSpace(given)) filters.Add("given=" + Encode(given));
+        if (filters.Count == 0) yield break;
+        var baseUri = GetBaseUri();
+        Uri? next = new(baseUri, "Patient?" + string.Join("&", filters) + "&_count=10&_format=xml");
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var pages = new HashSet<string>(StringComparer.Ordinal);
+        while (next is not null)
+        {
+            if (pages.Count >= 100 || !pages.Add(next.AbsoluteUri))
+                throw new InvalidOperationException("Patient search exceeded the paging safety limit.");
+            var document = ParseDocument(await GetXmlAsync(next, baseUri, cancellationToken));
+            EnsureBundle(document);
+            foreach (var patient in ParsePatientResources(document))
+                if (seen.Add(patient.Id)) yield return patient;
+            next = GetNextPageUri(document, baseUri);
+        }
+    }
+
+    // $everything includes both patient-compartment records and supporting resources
+    // such as Medication, Practitioner, Organization, Device and Binary.
+    public async Task<IReadOnlyList<PatientResourceSection>> GetPatientResourceSectionsAsync(string patientId,
+        CancellationToken cancellationToken = default)
+    {
+        var xml = await GetAllBundlePagesAsync("Patient/" + Uri.EscapeDataString(RequireId(patientId, "patient")) +
+            "/$everything?_count=100&_format=xml", cancellationToken);
+        var document = ParseDocument(xml);
+        return document.Root!.Elements(Fhir + "entry").Select(e => e.Element(Fhir + "resource")?.Elements().FirstOrDefault())
+            .Where(r => r is not null && r.Name != Fhir + "OperationOutcome")
+            .Select(r => r!).GroupBy(r => r.Name.LocalName).OrderBy(g => g.Key, StringComparer.Ordinal)
+            .Select(g => new PatientResourceSection(g.Key, g.Select(r => new XElement(r)).ToList())).ToList();
+    }
+
+    private static void EnsureBundle(XDocument document)
+    {
+        if (document.Root?.Name != Fhir + "Bundle" || document.Descendants(Fhir + "OperationOutcome")
+            .Elements(Fhir + "issue").Any(i => Value(i, "severity") is "error" or "fatal"))
+            throw new InvalidOperationException("The FHIR server did not return a complete resource bundle.");
     }
 
     public async Task<IReadOnlyList<PatientSummary>> SearchPatientsByIdentifierAsync(
@@ -196,14 +254,17 @@ public sealed class FhirService(
         var combined = new XElement(Fhir + "Bundle",
             new XElement(Fhir + "type", new XAttribute("value", "searchset")));
         var count = 0;
+        var entryCount = 0;
         var seenResources = new HashSet<string>(StringComparer.Ordinal);
+        var seenPages = new HashSet<string>(StringComparer.Ordinal);
 
         for (var page = 0; nextUri is not null; page++)
         {
-            if (page >= 100)
+            if (page >= 100 || !seenPages.Add(nextUri.AbsoluteUri))
                 throw new InvalidOperationException("FHIR report exceeded the 10,000-record safety limit.");
 
             var document = ParseDocument(await GetXmlAsync(nextUri, baseUri, cancellationToken));
+            EnsureBundle(document);
             foreach (var entry in document.Root?.Elements(Fhir + "entry") ?? [])
             {
                 // Servers can repeat included resources across search pages.
@@ -213,6 +274,8 @@ public sealed class FhirService(
                     !seenResources.Add(resource.Name.LocalName + "/" + id))
                     continue;
                 combined.Add(new XElement(entry));
+                if (++entryCount > 10000)
+                    throw new InvalidOperationException("FHIR report exceeded the 10,000-record safety limit.");
                 // Bundle.total counts matches, not included resources or outcomes.
                 var mode = Value(entry.Element(Fhir + "search"), "mode");
                 if (mode != "include" && mode != "outcome" && resource?.Name != Fhir + "OperationOutcome")
@@ -299,6 +362,7 @@ public sealed class FhirService(
         var given = name?.Elements(Fhir + "given").Select(ElementValue)
             .Where(value => !string.IsNullOrWhiteSpace(value)) ?? [];
         var displayName = string.Join(" ", given.Append(family).Where(value => !string.IsNullOrWhiteSpace(value)));
+        if (string.IsNullOrWhiteSpace(displayName)) displayName = Value(name, "text");
 
         return new PatientSummary(
             Value(patient, "id"),
@@ -308,7 +372,13 @@ public sealed class FhirService(
             EmptyToNull(Value(patient, "gender")),
             bool.TryParse(Value(patient, "active"), out var active) ? active : null,
             ParseDate(Value(patient.Element(Fhir + "meta"), "lastUpdated")),
-            null);
+            null)
+        {
+            Phone = EmptyToNull(Value(patient.Elements(Fhir + "telecom").FirstOrDefault(t => Value(t, "system") == "phone"), "value")),
+            Email = EmptyToNull(Value(patient.Elements(Fhir + "telecom").FirstOrDefault(t => Value(t, "system") == "email"), "value")),
+            Address = EmptyToNull(Value(patient.Element(Fhir + "address"), "text")) ?? EmptyToNull(string.Join(", ", patient.Elements(Fhir + "address").Take(1).Elements()
+                .Where(e => e.Name.LocalName is "line" or "city" or "state" or "postalCode" or "country").Select(ElementValue)))
+        };
     }
 
     private async Task<PatientSummary?> GetPatientByIdAsync(

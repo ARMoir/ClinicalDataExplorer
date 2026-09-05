@@ -8,4 +8,9 @@ public sealed record PatientSummary(
     string? Gender,
     bool? Active,
     DateTimeOffset? LastUpdated,
-    DateTimeOffset? MostRecentEncounter);
+    DateTimeOffset? MostRecentEncounter)
+{
+    public string? Phone { get; init; }
+    public string? Email { get; init; }
+    public string? Address { get; init; }
+}

@@ -1,370 +1,131 @@
 @namespace ClinicalDataExplorer.Components.Pages
 @page "/"
-@implements IDisposable
+@implements IAsyncDisposable
 @inject FhirService FhirService
 @inject ApplicationSettingsService SettingsService
 
 <PageTitle>@($"{SettingsService.Current.ProductName} - Patients")</PageTitle>
-
-<div class="page-header patient-page-header">
-    <div>
-        <h1>Patients</h1>
-        <p>Find a patient by identifier or select one of the 10 patients with the most recent encounters.</p>
+<div class="patient-directory">
+    <div class="page-header patient-page-header">
+        <div><span class="eyebrow">Patient directory</span><h1>Find your patient</h1><p>Search patient records or browse by most recent encounter.</p></div>
+        <button class="secondary-button" @onclick="LoadRecentAsync" disabled="@Busy">Refresh recent patients</button>
     </div>
-    <button class="secondary-button" @onclick="LoadNewestPatientsAsync" disabled="@Busy">
-        Refresh newest
-    </button>
-</div>
-
-<section class="search-card">
-    <label for="patient-identifier">Patient identifier</label>
-    <div class="search-row">
-        <input id="patient-identifier"
-               @bind="Identifier"
-               @bind:event="oninput"
-               @onkeydown="HandleSearchKeyDown"
-               placeholder="MRN, medical record number, or other identifier"
-               autocomplete="off" />
-        <button @onclick="SearchAsync" disabled="@(Busy || string.IsNullOrWhiteSpace(Identifier))">
-            @(Searching ? "Searching..." : "Search")
-        </button>
-    </div>
-</section>
-
-@if (!string.IsNullOrWhiteSpace(ErrorMessage))
-{
-    <div class="error-card" role="alert">
-        <strong>FHIR request failed</strong>
-        <p>@ErrorMessage</p>
-    </div>
-}
-
-<div class="patient-workspace">
-    <section class="patient-list-card">
-        <div class="card-heading-row">
-            <div>
-                <h2>@PatientListTitle</h2>
-                <span>@PatientListSubtitle</span>
-            </div>
-            @if (LoadingPatients)
-            {
-                <span class="loading-label">Loading...</span>
-            }
+    <section class="search-card" aria-label="Patient search">
+        <div class="search-mode">
+            <label for="search-mode">Search by</label>
+            <select id="search-mode" @bind="SearchMode" disabled="@Busy"><option value="identifier">Patient identifier / MRN</option><option value="name">Last and first name</option></select>
         </div>
-
-        @if (!LoadingPatients && Patients.Count == 0)
-        {
-            <div class="empty-state">No matching patients were returned.</div>
-        }
+        <form @onsubmit="SearchAsync" @onsubmit:preventDefault>
+            <div class="search-row directory-search">
+                @if (SearchMode == "identifier")
+                {
+                    <div><label for="patient-identifier">Patient identifier</label><input id="patient-identifier" @bind="Identifier" @bind:event="oninput" placeholder="MRN or other identifier" autocomplete="off" disabled="@Busy" /></div>
+                }
+                else
+                {
+                    <div><label for="patient-family">Last name</label><input id="patient-family" @bind="Family" @bind:event="oninput" placeholder="Last name" autocomplete="off" disabled="@Busy" /></div>
+                    <div><label for="patient-given">First name</label><input id="patient-given" @bind="Given" @bind:event="oninput" placeholder="First name" autocomplete="off" disabled="@Busy" /></div>
+                }
+                <button type="submit" disabled="@(Busy || !CanSearch)">@(Busy ? "Loading…" : "Search patients")</button>
+            </div>
+        </form>
+        @if (SearchMode == "name") { <p class="search-help">Enter either name or both to narrow your search.</p> }
+    </section>
+    @if (ErrorMessage is not null) { <div class="error-card" role="alert">@ErrorMessage <button class="secondary-button" @onclick="RetryAsync" disabled="@Busy">Retry</button></div> }
+    <section class="patient-list-card directory-results" aria-busy="@(Busy ? "true" : "false")">
+        <div class="card-heading-row"><div><h2>@(IsSearch ? "Search results" : "Recent patients")</h2><span>@ListDescription</span></div><span>10 per page</span></div>
+        @if (Busy) { <div class="empty-state" role="status">Loading patients…</div> }
+        else if (CurrentPatients.Count == 0 && ErrorMessage is null) { <div class="empty-state">No matching patients were returned.</div> }
         else
         {
             <div class="patient-list">
-                @foreach (var patient in Patients)
+                @foreach (var patient in CurrentPatients)
                 {
-                    <button class="patient-row @(SelectedPatient?.Id == patient.Id ? "selected" : null)"
-                            @onclick="() => SelectPatientAsync(patient)"
-                            disabled="@Busy">
-                        <span class="patient-row-main">
-                            <strong>@patient.DisplayName</strong>
-                            <span>@FormatIdentifiers(patient.Identifiers)</span>
-                        </span>
-                        <span class="patient-row-meta">
-                            <span>DOB @Display(patient.BirthDate)</span>
-                            <span>@Display(patient.Gender)</span>
-                            @if (!ShowingSearchResults)
-                            {
-                                <span>Latest encounter @FormatDate(patient.MostRecentEncounter)</span>
-                            }
-                            else
-                            {
-                                <span>Updated @FormatDate(patient.LastUpdated)</span>
-                            }
-                        </span>
-                    </button>
+                    <a class="patient-row directory-patient" href="@($"/patient/{Uri.EscapeDataString(patient.Id)}")">
+                        <div class="directory-identity"><span class="patient-avatar" aria-hidden="true">@(patient.DisplayName[..1])</span><div><h3>@patient.DisplayName</h3><span>@(patient.Identifiers.Count > 0 ? string.Join(" · ", patient.Identifiers) : "No identifier recorded")</span></div><span class="status-chip">@(patient.Active switch { true => "Active", false => "Inactive", _ => "Status not recorded" })</span></div>
+                        <dl class="directory-demographics">
+                            <div><dt>Date of birth</dt><dd>@Display(patient.BirthDate)</dd></div><div><dt>Gender</dt><dd>@Display(patient.Gender)</dd></div>
+                            <div><dt>Phone</dt><dd>@Display(patient.Phone)</dd></div><div><dt>@(IsSearch ? "Last updated" : "Latest encounter")</dt><dd>@((IsSearch ? patient.LastUpdated : patient.MostRecentEncounter)?.ToLocalTime().ToString("MMM d, yyyy") ?? "Not recorded")</dd></div>
+                            <div class="directory-address"><dt>Address</dt><dd>@Display(patient.Address)</dd></div><div><dt>Email</dt><dd>@Display(patient.Email)</dd></div><div><dt>FHIR ID</dt><dd>@patient.Id</dd></div>
+                        </dl><span class="patient-open">Open patient report →</span>
+                    </a>
                 }
             </div>
         }
-    </section>
-
-    <section class="encounter-card">
-        @if (SelectedPatient is null)
-        {
-            <div class="encounter-placeholder">
-                <strong>Select a patient</strong>
-                <span>Their complete encounter history will appear here.</span>
-            </div>
-        }
-        else
-        {
-            <div class="selected-patient-header">
-                <div>
-                    <span class="eyebrow">Selected patient</span>
-                    <h2>@SelectedPatient.DisplayName</h2>
-                    <p>@FormatIdentifiers(SelectedPatient.Identifiers)</p>
-                    <a class="xslt-report-link" href="@($"/patient/{Uri.EscapeDataString(SelectedPatient.Id)}")">Open customizable patient report</a>
-                </div>
-                <span class="encounter-count">@Encounters.Count encounter@(Encounters.Count == 1 ? "" : "s")</span>
-            </div>
-
-            @if (LoadingEncounters)
-            {
-                <div class="empty-state">Loading all encounters...</div>
-            }
-            else if (Encounters.Count == 0)
-            {
-                <div class="empty-state">No encounters were returned for this patient.</div>
-            }
-            else
-            {
-                <div class="table-wrap">
-                    <table class="encounter-table">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Type</th>
-                                <th>Class</th>
-                                <th>Status</th>
-                                <th>Observations</th>
-                                <th>Location / provider</th>
-                                <th>Identifier</th>
-                                <th>Report</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var encounter in Encounters)
-                            {
-                                <tr>
-                                    <td>
-                                        <strong>@FormatDate(encounter.Start)</strong>
-                                        @if (encounter.End is not null)
-                                        {
-                                            <small>to @FormatDate(encounter.End)</small>
-                                        }
-                                    </td>
-                                    <td>@encounter.Type</td>
-                                    <td>@encounter.Class</td>
-                                    <td><span class="status-chip">@encounter.Status</span></td>
-                                    <td>
-                                        <button class="observation-count-button @(SelectedEncounter?.Id == encounter.Id ? "active" : null)"
-                                                @onclick="() => SelectEncounterAsync(encounter)"
-                                                disabled="@(LoadingObservations || encounter.ObservationCount == 0)">
-                                            @encounter.ObservationCount
-                                        </button>
-                                    </td>
-                                    <td>@encounter.LocationOrProvider</td>
-                                    <td class="identifier-cell">@FormatIdentifiers(encounter.Identifiers)</td>
-                                    <td><a class="xslt-report-link" href="@($"/encounter/{Uri.EscapeDataString(encounter.Id)}")">Report</a></td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            }
-
-            @if (SelectedEncounter is not null)
-            {
-                <section class="observations-panel">
-                    <div class="observations-heading">
-                        <div>
-                            <span class="eyebrow">Encounter observations</span>
-                            <h3>@FormatDate(SelectedEncounter.Start) · @SelectedEncounter.Type</h3>
-                        </div>
-                        <button class="secondary-button" @onclick="CloseObservations" disabled="@LoadingObservations">Close</button>
-                    </div>
-
-                    @if (LoadingObservations)
-                    {
-                        <div class="empty-state">Loading observations...</div>
-                    }
-                    else if (Observations.Count == 0)
-                    {
-                        <div class="empty-state">No observations were returned.</div>
-                    }
-                    else
-                    {
-                        <div class="table-wrap">
-                            <table class="observation-table">
-                                <thead>
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>Observation</th>
-                                        <th>Value</th>
-                                        <th>Interpretation</th>
-                                        <th>Reference range</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var observation in Observations)
-                                    {
-                                        <tr>
-                                            <td>@FormatDate(observation.EffectiveDate)</td>
-                                            <td><strong>@observation.Name</strong></td>
-                                            <td class="observation-value">@observation.Value</td>
-                                            <td>@Display(observation.Interpretation)</td>
-                                            <td>@Display(observation.ReferenceRange)</td>
-                                            <td><span class="status-chip">@observation.Status</span></td>
-                                        </tr>
-                                    }
-                                </tbody>
-                            </table>
-                        </div>
-                    }
-                </section>
-            }
-        }
+        <nav class="pagination" aria-label="Patient pages">
+            <button class="secondary-button" @onclick="PreviousPage" disabled="@(Busy || Page == 0)">← Previous</button>
+            <span aria-live="polite">Page @(Page + 1) · @CurrentPatients.Count patients</span>
+            <button class="secondary-button" @onclick="NextPageAsync" disabled="@(Busy || ErrorMessage is not null || (Page + 1 >= Pages.Count && !HasMore))">Next →</button>
+        </nav>
     </section>
 </div>
 
 @code {
-    private readonly CancellationTokenSource _cancellation = new();
-    private IReadOnlyList<PatientSummary> Patients { get; set; } = [];
-    private IReadOnlyList<EncounterSummary> Encounters { get; set; } = [];
-    private IReadOnlyList<ObservationSummary> Observations { get; set; } = [];
-    private PatientSummary? SelectedPatient { get; set; }
-    private EncounterSummary? SelectedEncounter { get; set; }
-    private string Identifier { get; set; } = string.Empty;
-    private string? ErrorMessage { get; set; }
-    private bool LoadingPatients { get; set; }
-    private bool LoadingEncounters { get; set; }
-    private bool Searching { get; set; }
-    private bool LoadingObservations { get; set; }
-    private bool ShowingSearchResults { get; set; }
-    private string SearchedIdentifier { get; set; } = string.Empty;
-    private bool Busy => LoadingPatients || LoadingEncounters || Searching || LoadingObservations;
-    private string PatientListTitle => ShowingSearchResults ? "Search results" : "Recent patients";
-    private string PatientListSubtitle => ShowingSearchResults
-        ? $"Identifier: {SearchedIdentifier}"
-        : "Ordered by most recent encounter";
-
-    protected override async Task OnInitializedAsync() => await LoadNewestPatientsAsync();
-
-    private async Task LoadNewestPatientsAsync()
+    private readonly CancellationTokenSource Cancellation = new();
+    private IAsyncEnumerator<PatientSummary>? Iterator;
+    private readonly List<IReadOnlyList<PatientSummary>> Pages = [];
+    private PatientSummary? Lookahead;
+    private int Page;
+    private bool Busy, IsSearch, HasMore;
+    private string SearchMode = "identifier", Identifier = "", Family = "", Given = "";
+    private string ListDescription = "Ordered by most recent encounter", ActiveIdentifier = "", ActiveFamily = "", ActiveGiven = "";
+    private string? ErrorMessage;
+    private bool CanSearch => SearchMode == "identifier" ? !string.IsNullOrWhiteSpace(Identifier) : !string.IsNullOrWhiteSpace(Family) || !string.IsNullOrWhiteSpace(Given);
+    private IReadOnlyList<PatientSummary> CurrentPatients => Pages.Count > Page ? Pages[Page] : [];
+    protected override Task OnInitializedAsync() => LoadRecentAsync();
+    private Task LoadRecentAsync() { IsSearch = false; ListDescription = "Ordered by most recent encounter"; return ResetAsync(); }
+    private Task SearchAsync()
     {
-        LoadingPatients = true;
-        ShowingSearchResults = false;
-        ErrorMessage = null;
-        SelectedPatient = null;
-        Encounters = [];
-        CloseObservations();
-
+        if (Busy || !CanSearch) return Task.CompletedTask;
+        IsSearch = true;
+        ActiveIdentifier = SearchMode == "identifier" ? Identifier.Trim() : "";
+        ActiveFamily = SearchMode == "name" ? Family.Trim() : "";
+        ActiveGiven = SearchMode == "name" ? Given.Trim() : "";
+        ListDescription = SearchMode == "identifier" ? $"Identifier: {ActiveIdentifier}" : $"Name: {ActiveFamily}, {ActiveGiven}";
+        return ResetAsync();
+    }
+    private Task RetryAsync() => ResetAsync();
+    private async Task ResetAsync()
+    {
+        Busy = true;
         try
         {
-            Patients = await FhirService.GetPatientsWithRecentEncountersAsync(_cancellation.Token);
+            if (Iterator is not null) await Iterator.DisposeAsync();
+            Pages.Clear(); Page = 0; Lookahead = null; HasMore = true; ErrorMessage = null;
+            Iterator = (IsSearch ? FhirService.StreamPatientSearchAsync(ActiveIdentifier, ActiveFamily, ActiveGiven, Cancellation.Token)
+                : FhirService.StreamRecentPatientsAsync(Cancellation.Token)).GetAsyncEnumerator(Cancellation.Token);
+            await ReadPageAsync();
         }
-        catch (OperationCanceledException) when (_cancellation.IsCancellationRequested) { }
-        catch (Exception ex)
-        {
-            ErrorMessage = ex.Message;
-            Patients = [];
-        }
-        finally
-        {
-            LoadingPatients = false;
-        }
+        catch (OperationCanceledException) when (Cancellation.IsCancellationRequested) { }
+        catch (Exception ex) { ErrorMessage = ex.Message; HasMore = false; }
+        finally { Busy = false; }
     }
-
-    private async Task SearchAsync()
+    private async Task ReadPageAsync()
     {
-        if (Busy || string.IsNullOrWhiteSpace(Identifier)) return;
-
-        Searching = true;
-        ShowingSearchResults = true;
-        SearchedIdentifier = Identifier.Trim();
-        ErrorMessage = null;
-        SelectedPatient = null;
-        Encounters = [];
-        CloseObservations();
-
-        try
-        {
-            Patients = await FhirService.SearchPatientsByIdentifierAsync(Identifier, _cancellation.Token);
-        }
-        catch (OperationCanceledException) when (_cancellation.IsCancellationRequested) { }
-        catch (Exception ex)
-        {
-            ErrorMessage = ex.Message;
-            Patients = [];
-        }
-        finally
-        {
-            Searching = false;
-        }
+        var patients = new List<PatientSummary>();
+        if (Lookahead is not null) { patients.Add(Lookahead); Lookahead = null; }
+        while (patients.Count < 10 && await Iterator!.MoveNextAsync()) patients.Add(Iterator.Current);
+        HasMore = patients.Count == 10 && await Iterator!.MoveNextAsync();
+        if (HasMore) Lookahead = Iterator!.Current;
+        Pages.Add(patients);
     }
-
-    private async Task SelectPatientAsync(PatientSummary patient)
+    private void PreviousPage() { if (Page > 0) Page--; }
+    private async Task NextPageAsync()
     {
         if (Busy) return;
-
-        SelectedPatient = patient;
-        Encounters = [];
-        CloseObservations();
-        LoadingEncounters = true;
-        ErrorMessage = null;
-
-        try
-        {
-            Encounters = await FhirService.GetPatientEncountersAsync(patient.Id, _cancellation.Token);
-        }
-        catch (OperationCanceledException) when (_cancellation.IsCancellationRequested) { }
-        catch (Exception ex)
-        {
-            ErrorMessage = ex.Message;
-        }
-        finally
-        {
-            LoadingEncounters = false;
-        }
+        if (Page + 1 < Pages.Count) { Page++; return; }
+        Busy = true;
+        try { await ReadPageAsync(); Page++; }
+        catch (OperationCanceledException) when (Cancellation.IsCancellationRequested) { }
+        catch (Exception ex) { ErrorMessage = ex.Message; HasMore = false; }
+        finally { Busy = false; }
     }
-
-    private async Task SelectEncounterAsync(EncounterSummary encounter)
+    private static string Display(string? value) => string.IsNullOrWhiteSpace(value) ? "Not recorded" : value;
+    public async ValueTask DisposeAsync()
     {
-        if (LoadingObservations || encounter.ObservationCount == 0) return;
-
-        SelectedEncounter = encounter;
-        Observations = [];
-        LoadingObservations = true;
-        ErrorMessage = null;
-
-        try
-        {
-            Observations = await FhirService.GetEncounterObservationsAsync(encounter.Id, _cancellation.Token);
-        }
-        catch (OperationCanceledException) when (_cancellation.IsCancellationRequested) { }
-        catch (Exception ex)
-        {
-            ErrorMessage = ex.Message;
-        }
-        finally
-        {
-            LoadingObservations = false;
-        }
-    }
-
-    private void CloseObservations()
-    {
-        SelectedEncounter = null;
-        Observations = [];
-        LoadingObservations = false;
-    }
-
-    private async Task HandleSearchKeyDown(KeyboardEventArgs args)
-    {
-        if (args.Key == "Enter") await SearchAsync();
-    }
-
-    private static string FormatIdentifiers(IReadOnlyList<string> identifiers) =>
-        identifiers.Count == 0 ? "No identifier" : string.Join(" · ", identifiers);
-
-    private static string Display(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? "Not recorded" : value;
-
-    private static string FormatDate(DateTimeOffset? date) =>
-        date?.ToLocalTime().ToString("MMM d, yyyy") ?? "Not recorded";
-
-    public void Dispose()
-    {
-        _cancellation.Cancel();
-        _cancellation.Dispose();
+        await Cancellation.CancelAsync();
+        // An in-flight MoveNextAsync owns the enumerator until cancellation completes.
+        if (!Busy && Iterator is not null) await Iterator.DisposeAsync();
+        Cancellation.Dispose();
     }
 }
