@@ -74,6 +74,35 @@ public sealed class PatientExplorerTests
     }
 
     [Theory]
+    [InlineData(@"\n")]
+    [InlineData("&#10;")]
+    public async Task Multiline_observations_are_formatted_in_diagnostic_reports(string separator)
+    {
+        var text = $"FINDINGS{separator}Result: Clear{separator}{separator}-----{separator}&lt;script&gt;";
+        var report = Entry($"<Observation><id value='report'/><valueString value='{text}'/></Observation>");
+        var scalar = Entry("<Observation><id value='scalar'/><valueString value='Clear'/></Observation>");
+        using var handler = new ScriptedHandler(_ => ScriptedHandler.Xml(Bundle(report + scalar,
+            "Patient/p1/$everything?cursor=2")), _ => ScriptedHandler.Xml(Bundle(report +
+                Entry("<DiagnosticReport><id value='diagnostic'/></DiagnosticReport>"))));
+        using var context = new FhirTestContext(BaseUrl, handler);
+        var sections = await context.Service.GetPatientResourceSectionsAsync("p1");
+        var reports = Assert.Single(sections, s => s.ResourceType == "DiagnosticReport");
+        Assert.Equal(2, reports.Count);
+        var observations = Assert.Single(sections, s => s.ResourceType == "Observation");
+        Assert.Equal("scalar", Assert.Single(observations.Resources).Element(XName.Get("id", "http://hl7.org/fhir"))!.Attribute("value")!.Value);
+        var html = Transform("PatientResources", reports.PageXml());
+        var body = html.Split("<div class=\"clinical-document\">", 2)[1].Split("<details", 2)[0];
+        Assert.Contains("class=\"document-heading\">FINDINGS</div>", body);
+        Assert.Contains("<strong class=\"document-label\">Result:</strong>", body);
+        Assert.Contains("class=\"document-blank\"", body);
+        Assert.Contains("class=\"document-rule\"", body);
+        Assert.Contains("&lt;script&gt;", body);
+        Assert.DoesNotContain(@"\n", body);
+        Assert.DoesNotContain("<script>", body);
+        Assert.DoesNotContain("class=\"observation-value\"", html);
+    }
+
+    [Theory]
     [InlineData("<OperationOutcome xmlns='http://hl7.org/fhir'/>")]
     [InlineData("<Bundle xmlns='http://hl7.org/fhir'><entry><resource><OperationOutcome><issue><severity value='error'/></issue></OperationOutcome></resource></entry></Bundle>")]
     public async Task Outcome_does_not_become_zero_counts(string xml)

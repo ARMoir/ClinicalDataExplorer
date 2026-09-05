@@ -152,7 +152,9 @@ public sealed class FhirService(
         var document = ParseDocument(xml);
         return document.Root!.Elements(Fhir + "entry").Select(e => e.Element(Fhir + "resource")?.Elements().FirstOrDefault())
             .Where(r => r is not null && r.Name != Fhir + "OperationOutcome")
-            .Select(r => r!).GroupBy(r => r.Name.LocalName).OrderBy(g => g.Key, StringComparer.Ordinal)
+            .Select(r => r!).GroupBy(r => r.Name == Fhir + "Observation" &&
+                r.Descendants().Attributes("value").Any(v => v.Value.Contains('\n') || v.Value.Contains(@"\n"))
+                    ? "DiagnosticReport" : r.Name.LocalName).OrderBy(g => g.Key, StringComparer.Ordinal)
             .Select(g => new PatientResourceSection(g.Key, g.Select(r => new XElement(r)).ToList())).ToList();
     }
 
