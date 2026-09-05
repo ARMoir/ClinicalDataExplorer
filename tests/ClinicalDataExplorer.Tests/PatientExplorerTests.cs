@@ -138,14 +138,36 @@ public sealed class PatientExplorerTests
         Assert.DoesNotContain("<script>", html);
     }
 
-    [Fact]
-    public void Demographics_render_branding_and_unknown_status()
+    [Theory]
+    [InlineData("", "active")]
+    [InlineData("<active value='true'/>", "active")]
+    [InlineData("<active value='false'/>", "inactive")]
+    public void Demographics_render_branding_and_default_to_active(string active, string expectedStatus)
     {
-        var html = Transform("PatientDetails", "<Patient xmlns='http://hl7.org/fhir'><id value='p1'/></Patient>");
+        var html = Transform("PatientDetails", $"<Patient xmlns='http://hl7.org/fhir'><id value='p1'/>{active}</Patient>");
         Assert.Contains("/uploads/test.png", html);
         Assert.Contains("Test facility", html);
         Assert.Contains("#113B75", html);
         Assert.Contains("Not recorded", html);
+        Assert.Contains($"<span class=\"status-chip\">{expectedStatus}</span>", html);
+    }
+
+    [Theory]
+    [InlineData("Coverage", "<payor><reference value='Organization/1'/><display value='Example Health'/></payor><period><start value='2026-01-01'/><end value='2026-12-31'/></period>", "Payer", "Example Health", "2026-12-31")]
+    [InlineData("Appointment", "<start value='2026-09-06T09:00:00Z'/><participant><actor><display value='Dr Example'/></actor><status value='accepted'/></participant>", "Start", "2026-09-06T09:00:00Z", "Dr Example")]
+    [InlineData("MedicationRequest", "<medicationCodeableConcept><text value='Example medication'/></medicationCodeableConcept><dosageInstruction><text value='Take with food'/></dosageInstruction>", "Medication", "Example medication", "Take with food")]
+    [InlineData("Observation", "<interpretation><coding><code value='H'/></coding></interpretation><referenceRange><low><value value='3'/><unit value='mg/L'/></low><high><value value='10'/><unit value='mg/L'/></high></referenceRange>", "Interpretation", "H", "10 mg/L")]
+    [InlineData("PractitionerRole", "<practitioner><reference value='Practitioner/123'/></practitioner><specialty><coding><display value='Family medicine'/></coding></specialty>", "Provider", "Practitioner/123", "Family medicine")]
+    [InlineData("Condition", "<clinicalStatus><coding><display value='Active'/></coding></clinicalStatus><note><text value='&lt;script&gt;example&lt;/script&gt;'/></note>", "Clinical status", "Active", "&lt;script&gt;example&lt;/script&gt;")]
+    public void Pertinent_fields_are_visible_before_full_details(string type, string fields, string label, string first, string second)
+    {
+        var html = Transform("PatientResources", Bundle(Entry($"<{type}><id value='test'/>{fields}</{type}>")));
+        var visible = html.Split("<details", 2)[0];
+        Assert.Contains($"<dt><strong>{label}:</strong></dt>", visible);
+        Assert.Contains(first, visible);
+        Assert.Contains(second, visible);
+        Assert.DoesNotContain("<script>", visible);
+        Assert.Contains("All record details", html);
     }
 
     internal static string Transform(string template, string xml)

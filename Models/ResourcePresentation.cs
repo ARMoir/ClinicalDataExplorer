@@ -6,13 +6,15 @@ public static class ResourcePresentation
 {
     private static readonly Dictionary<string, string> Labels = new(StringComparer.Ordinal)
     {
-        ["Patient"] = "Patient records", ["Encounter"] = "Visits and encounters", ["Observation"] = "Observations and measurements",
+        ["Patient"] = "Patient records", ["Account"] = "Accounts", ["Appointment"] = "Appointments",
+        ["AppointmentResponse"] = "Appointment responses", ["Coverage"] = "Coverage", ["RelatedPerson"] = "Related persons",
+        ["Encounter"] = "Visits and encounters", ["Observation"] = "Observations and measurements",
         ["DiagnosticReport"] = "Diagnostic reports", ["AllergyIntolerance"] = "Allergies and intolerances",
         ["Condition"] = "Conditions", ["Procedure"] = "Procedures", ["MedicationRequest"] = "Medication orders",
         ["MedicationStatement"] = "Reported medications", ["MedicationAdministration"] = "Medication administrations",
         ["MedicationDispense"] = "Dispensed medications", ["DocumentReference"] = "Documents", ["ImagingStudy"] = "Imaging studies",
         ["ServiceRequest"] = "Service orders", ["QuestionnaireResponse"] = "Completed forms", ["Practitioner"] = "Clinicians",
-        ["PractitionerRole"] = "Clinician roles", ["Organization"] = "Organizations", ["Location"] = "Locations",
+        ["PractitionerRole"] = "Provider roles", ["Organization"] = "Organizations", ["Location"] = "Locations",
         ["HealthcareService"] = "Healthcare services", ["Endpoint"] = "Service connections", ["Medication"] = "Medication catalog",
         ["CodeSystem"] = "Code systems", ["ValueSet"] = "Code lists", ["ConceptMap"] = "Code mappings",
         ["NamingSystem"] = "Identifier systems", ["StructureDefinition"] = "Record definitions", ["StructureMap"] = "Record mappings",
@@ -24,6 +26,28 @@ public static class ResourcePresentation
         ["DeviceDefinition"] = "Device catalog", ["SpecimenDefinition"] = "Specimen definitions", ["Task"] = "Tasks",
         ["Binary"] = "File content", ["Provenance"] = "Record history", ["AuditEvent"] = "Access history"
     };
+
+    // Patient report reading order: care context, investigations, clinical history,
+    // care planning, documents, then administrative and supporting records.
+    private static readonly Dictionary<string, int> PatientSectionRanks = (
+        "Patient Account Appointment AppointmentResponse Encounter EpisodeOfCare " +
+        "PractitionerRole Practitioner CareTeam Coverage RelatedPerson " +
+        "ServiceRequest DiagnosticReport Observation ImagingStudy Specimen " +
+        "Condition AllergyIntolerance Flag MedicationStatement MedicationRequest MedicationAdministration MedicationDispense " +
+        "Procedure Immunization ImmunizationEvaluation ImmunizationRecommendation " +
+        "ClinicalImpression FamilyMemberHistory RiskAssessment DetectedIssue AdverseEvent " +
+        "CarePlan Goal NutritionOrder DeviceRequest DeviceUseStatement " +
+        "Communication CommunicationRequest Task RequestGroup QuestionnaireResponse " +
+        "Composition DocumentReference DocumentManifest Media Consent " +
+        "CoverageEligibilityRequest CoverageEligibilityResponse EnrollmentRequest Claim ClaimResponse " +
+        "ExplanationOfBenefit ChargeItem Invoice SupplyRequest SupplyDelivery " +
+        "ResearchSubject MeasureReport MolecularSequence BodyStructure VisionPrescription " +
+        "Person Group List Basic Schedule Slot Organization OrganizationAffiliation Location HealthcareService " +
+        "Device Medication Substance Questionnaire ResearchStudy Endpoint Binary Provenance AuditEvent")
+        .Split(' ').Select((type, rank) => (type, rank))
+        .ToDictionary(item => item.type, item => item.rank, StringComparer.Ordinal);
+
+    public static int PatientSectionOrder(string type) => PatientSectionRanks.GetValueOrDefault(type, int.MaxValue);
 
     // Shared definitions and directories, not unscoped patient records. New types can
     // be assigned here deliberately; metadata still lists every advertised type.

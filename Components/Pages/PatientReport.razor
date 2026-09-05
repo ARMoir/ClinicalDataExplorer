@@ -76,7 +76,9 @@ else if (PatientError is null)
                 if (token.IsCancellationRequested) return;
                 foreach (var type in PatientTypes.Split(' '))
                     if (!sections.Any(s => s.ResourceType == type)) sections.Add(new(type, []));
-                Sections = sections.OrderByDescending(s => s.Count > 0).ThenBy(s => s.Label, StringComparer.Ordinal).ToList();
+                Sections = sections.OrderByDescending(s => s.Count > 0)
+                    .ThenBy(s => ResourcePresentation.PatientSectionOrder(s.ResourceType))
+                    .ThenBy(s => s.Label, StringComparer.Ordinal).ToList();
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { }
             catch (Exception ex) { if (!token.IsCancellationRequested) ResourceError = ex.Message; }

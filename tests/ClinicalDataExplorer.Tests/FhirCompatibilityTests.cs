@@ -59,7 +59,8 @@ public sealed class FhirCompatibilityTests
         using var context = new FhirTestContext(BaseUrl, handler);
         var patient = Assert.Single(await context.Service.GetPatientsWithRecentEncountersAsync());
         Assert.Equal("p1", patient.Id);
-        Assert.Equal("Test Patient", patient.DisplayName);
+        Assert.Equal("Patient, Test", patient.DisplayName);
+        Assert.Equal("PT", patient.Initials);
         Assert.NotNull(patient.MostRecentEncounter);
         Assert.Equal(2, handler.Calls);
     }

@@ -410,11 +410,20 @@ public sealed class FhirService(
         var name = names.FirstOrDefault(item => Value(item, "use") == "official")
             ?? names.FirstOrDefault(item => Value(item, "use") == "usual")
             ?? names.FirstOrDefault();
-        var family = Value(name, "family");
-        var given = name?.Elements(Fhir + "given").Select(ElementValue)
-            .Where(value => !string.IsNullOrWhiteSpace(value)) ?? [];
-        var displayName = string.Join(" ", given.Append(family).Where(value => !string.IsNullOrWhiteSpace(value)));
+        var family = Value(name, "family").Trim();
+        var given = name?.Elements(Fhir + "given").Select(e => ElementValue(e).Trim())
+            .Where(value => !string.IsNullOrWhiteSpace(value)).ToList() ?? [];
+        var displayName = string.Join(", ", new[] { family, string.Join(" ", given) }.Where(value => !string.IsNullOrWhiteSpace(value)));
         if (string.IsNullOrWhiteSpace(displayName)) displayName = Value(name, "text");
+        var initials = string.Concat(new[] { family, given.FirstOrDefault() }
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => System.Globalization.StringInfo.GetNextTextElement(value!).ToUpperInvariant()));
+        if (initials.Length == 0 && !string.IsNullOrWhiteSpace(displayName))
+        {
+            var parts = displayName.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            initials = System.Globalization.StringInfo.GetNextTextElement(parts[0]).ToUpperInvariant();
+            if (parts.Length > 1) initials += System.Globalization.StringInfo.GetNextTextElement(parts[^1]).ToUpperInvariant();
+        }
 
         return new PatientSummary(
             Value(patient, "id"),
@@ -426,6 +435,7 @@ public sealed class FhirService(
             ParseDate(Value(patient.Element(Fhir + "meta"), "lastUpdated")),
             null)
         {
+            Initials = initials.Length > 0 ? initials : "?",
             Phone = EmptyToNull(Value(patient.Elements(Fhir + "telecom").FirstOrDefault(t => Value(t, "system") == "phone"), "value")),
             Email = EmptyToNull(Value(patient.Elements(Fhir + "telecom").FirstOrDefault(t => Value(t, "system") == "email"), "value")),
             Address = EmptyToNull(Value(patient.Element(Fhir + "address"), "text")) ?? EmptyToNull(string.Join(", ", patient.Elements(Fhir + "address").Take(1).Elements()

@@ -490,6 +490,12 @@ button:disabled { opacity: .55; cursor: default; }
 .resource-field dt { color: #566573; overflow-wrap: anywhere; }
 .resource-field dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .field-value { display: block; white-space: pre-wrap; }
+.record-highlights { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 14px 24px; margin: 18px 0; }
+.record-highlights:empty { display: none; }
+.record-highlight { min-width: 0; }
+.record-highlight dt { color: var(--primary-color, #1f618d); font-size: 13px; line-height: 1.4; margin-bottom: 5px; }
+.record-highlight dt strong { font-weight: 700; }
+.record-highlight dd { margin: 0; font-size: 14px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width: 650px) {
     .directory-search, .search-mode { flex-direction: column; align-items: stretch; }
     .directory-demographics { grid-template-columns: repeat(2, minmax(0, 1fr)); }

@@ -39,10 +39,12 @@
         else
         {
             <div class="patient-list">
-                @foreach (var patient in CurrentPatients)
+                @for (var patientIndex = 0; patientIndex < CurrentPatients.Count; patientIndex++)
                 {
+                    var patient = CurrentPatients[patientIndex];
+                    var avatarColor = patientIndex % 2 == 0 ? "var(--primary-color)" : "var(--secondary-color)";
                     <a class="patient-row directory-patient" href="@($"/patient/{Uri.EscapeDataString(patient.Id)}")">
-                        <div class="directory-identity"><span class="patient-avatar" aria-hidden="true">@(patient.DisplayName[..1])</span><div><h3>@patient.DisplayName</h3><span>@(patient.Identifiers.Count > 0 ? string.Join(" · ", patient.Identifiers) : "No identifier recorded")</span></div><span class="status-chip">@(patient.Active switch { true => "Active", false => "Inactive", _ => "Status not recorded" })</span></div>
+                        <div class="directory-identity"><span class="patient-avatar" style="background-color: @avatarColor" aria-hidden="true">@patient.Initials</span><div><h3>@patient.DisplayName</h3><span>@(patient.Identifiers.Count > 0 ? string.Join(" · ", patient.Identifiers) : "No identifier recorded")</span></div><span class="status-chip">@(patient.Active == false ? "Inactive" : "Active")</span></div>
                         <dl class="directory-demographics">
                             <div><dt>Date of birth</dt><dd>@Display(patient.BirthDate)</dd></div><div><dt>Gender</dt><dd>@Display(patient.Gender)</dd></div>
                             <div><dt>Phone</dt><dd>@Display(patient.Phone)</dd></div><div><dt>@(IsSearch ? "Last updated" : "Latest encounter")</dt><dd>@((IsSearch ? patient.LastUpdated : patient.MostRecentEncounter)?.ToLocalTime().ToString("MMM d, yyyy") ?? "Not recorded")</dd></div>
