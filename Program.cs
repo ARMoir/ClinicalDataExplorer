@@ -36,6 +36,10 @@ builder.Services.AddHttpClient("Fhir", client =>
     client.DefaultRequestHeaders.Accept.Add(
         new MediaTypeWithQualityHeaderValue("application/fhir+xml"));
     client.Timeout = TimeSpan.FromSeconds(30);
+}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    // Redirects must not bypass FhirService's configured-server boundary.
+    AllowAutoRedirect = false
 });
 
 builder.Services.AddScoped<FhirService>();

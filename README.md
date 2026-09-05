@@ -21,6 +21,10 @@ dotnet restore
 dotnet run
 ```
 
+## Tests
+
+See [testing and server compatibility](docs/testing.md) for offline tests and opt-in live tests against HAPI or Microsoft FHIR Server with SQL Server persistence.
+
 ## Application settings
 
 Open `/settings` from the top navigation to configure:
@@ -89,7 +93,7 @@ _include:iterate=Observation:performer
 _include:iterate=PractitionerRole:practitioner
 ```
 
-The report stylesheet prefers `Reference.display`, then resolves included `PractitionerRole` and `Practitioner` resources to a human-readable provider name. Direct Practitioner and Organization performers are also supported. If the FHIR server does not support iterative includes or does not return the referenced resource, the raw performer reference is shown as a fallback.
+The report stylesheet prefers `Reference.display`, then resolves included `PractitionerRole` and `Practitioner` resources to a human-readable provider name. Direct Practitioner and Organization performers are also supported. If a referenced resource is not returned, the raw performer reference is shown as a fallback. A server that rejects iterative includes produces a search error under strict handling; verify support on the deployed server using the live tests. Diagnostic-report searches follow all result pages and deduplicate repeated included resources.
 
 ## Current report columns
 

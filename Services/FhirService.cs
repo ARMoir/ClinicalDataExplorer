@@ -17,7 +17,7 @@ public sealed class FhirService(
         Uri? nextUri = new(baseUri,
             "Encounter?_sort=-date&_include=Encounter:patient&_count=100&_format=xml");
         var patients = new List<PatientSummary>(10);
-        var seenPatientIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenPatientIds = new HashSet<string>(StringComparer.Ordinal);
 
         // Encounters arrive newest-first. The first encounter seen for a patient
         // is therefore that patient's most recent encounter.
@@ -28,7 +28,8 @@ public sealed class FhirService(
 
             var document = ParseDocument(await GetXmlAsync(nextUri, baseUri, cancellationToken));
             var includedPatients = ParsePatientResources(document)
-                .ToDictionary(patient => patient.Id, StringComparer.OrdinalIgnoreCase);
+                .GroupBy(patient => patient.Id, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
 
             foreach (var encounterElement in ReadResources(document, "Encounter"))
             {
@@ -167,7 +168,7 @@ public sealed class FhirService(
 
         var baseUri = GetBaseUri();
         var requestUri = new Uri(baseUri, relativeUrl);
-        var body = await GetXmlAsync(requestUri, baseUri, cancellationToken);
+        var body = await GetAllBundlePagesAsync(requestUri, baseUri, cancellationToken);
         return new FhirResponse(requestUri.ToString(), body);
     }
 
@@ -186,10 +187,16 @@ public sealed class FhirService(
     private async Task<string> GetAllBundlePagesAsync(string relativeUrl, CancellationToken cancellationToken)
     {
         var baseUri = GetBaseUri();
-        Uri? nextUri = new(baseUri, relativeUrl);
+        return await GetAllBundlePagesAsync(new Uri(baseUri, relativeUrl), baseUri, cancellationToken);
+    }
+
+    private async Task<string> GetAllBundlePagesAsync(Uri requestUri, Uri baseUri, CancellationToken cancellationToken)
+    {
+        Uri? nextUri = requestUri;
         var combined = new XElement(Fhir + "Bundle",
             new XElement(Fhir + "type", new XAttribute("value", "searchset")));
         var count = 0;
+        var seenResources = new HashSet<string>(StringComparer.Ordinal);
 
         for (var page = 0; nextUri is not null; page++)
         {
@@ -199,8 +206,17 @@ public sealed class FhirService(
             var document = ParseDocument(await GetXmlAsync(nextUri, baseUri, cancellationToken));
             foreach (var entry in document.Root?.Elements(Fhir + "entry") ?? [])
             {
+                // Servers can repeat included resources across search pages.
+                var resource = entry.Element(Fhir + "resource")?.Elements().FirstOrDefault();
+                var id = Value(resource, "id");
+                if (resource is not null && id.Length > 0 &&
+                    !seenResources.Add(resource.Name.LocalName + "/" + id))
+                    continue;
                 combined.Add(new XElement(entry));
-                count++;
+                // Bundle.total counts matches, not included resources or outcomes.
+                var mode = Value(entry.Element(Fhir + "search"), "mode");
+                if (mode != "include" && mode != "outcome" && resource?.Name != Fhir + "OperationOutcome")
+                    count++;
             }
             nextUri = GetNextPageUri(document, baseUri);
         }
@@ -220,11 +236,22 @@ public sealed class FhirService(
             throw new InvalidOperationException("The FHIR server returned a paging link outside the configured server.");
 
         var client = httpClientFactory.CreateClient("Fhir");
-        using var response = await client.GetAsync(requestUri, cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
+        request.Headers.Accept.ParseAdd("application/fhir+xml");
+        // Microsoft FHIR Server otherwise handles unsupported searches leniently.
+        // Never silently show incorrectly filtered or ordered clinical results.
+        request.Headers.TryAddWithoutValidation("Prefer", "handling=strict");
+        using var response = await client.SendAsync(request, cancellationToken);
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
 
         if (!response.IsSuccessStatusCode)
-            throw new HttpRequestException($"FHIR server returned {(int)response.StatusCode} {response.ReasonPhrase}.");
+            throw new HttpRequestException(
+                $"FHIR server returned {(int)response.StatusCode} {response.ReasonPhrase}. " +
+                "Check server search capabilities and access configuration.", null, response.StatusCode);
+
+        if (response.Content.Headers.ContentType?.MediaType?.Contains("json", StringComparison.OrdinalIgnoreCase) == true)
+            throw new InvalidOperationException(
+                "The FHIR server returned JSON when XML was requested. This application's reports require an XML-enabled FHIR R4 endpoint.");
 
         return body;
     }
@@ -361,9 +388,11 @@ public sealed class FhirService(
                     "&_summary=count&_total=accurate&_format=xml");
                 var document = ParseDocument(await GetXmlAsync(uri, baseUri, token));
                 var totalText = Value(document.Root, "total");
+                if (!int.TryParse(totalText, out var total) || total < 0)
+                    throw new InvalidOperationException("The FHIR server did not return a valid observation count for _summary=count.");
                 results[index] = encounter with
                 {
-                    ObservationCount = int.TryParse(totalText, out var total) ? total : 0
+                    ObservationCount = total
                 };
             });
 
