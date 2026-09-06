@@ -11,4 +11,7 @@ public sealed record PractitionerAssociation(
     string Name,
     IReadOnlyList<PractitionerIdentifier> Identifiers,
     IReadOnlyList<string> Sources,
-    bool IsResolved);
+    bool IsResolved)
+{
+    public IReadOnlyList<string> References { get; init; } = [Reference];
+}

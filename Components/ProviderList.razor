@@ -1,0 +1,35 @@
+@namespace ClinicalDataExplorer.Components
+                        <div class="patient-providers">
+                            <strong class="patient-providers-label">Associated providers:</strong>
+                            @if (Error is not null) { <p class="provider-lookup-error">@Error</p> }
+                            @if (Providers.Count == 0 && Error is null) { <span>No practitioner references returned.</span> }
+                            @if (Providers.Count > 0)
+                            {
+                            <details class="provider-details">
+                            <summary>@string.Join(" · ", Providers.SelectMany(p => p.Identifiers.Count > 0 ? p.Identifiers.Select(i => i.Value) : p.References).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))</summary>
+                            @foreach (var provider in Providers)
+                            {
+                                <div class="patient-provider">
+                                    <h4 class="provider-name">@provider.Name</h4>
+                                    <p class="provider-reference"><strong>@(provider.References.Count == 1 ? "Record reference:" : "Record references:")</strong> @string.Join(" · ", provider.References)</p>
+                                    @foreach (var identifier in provider.Identifiers)
+                                    {
+                                        <div class="provider-identifier">
+                                            <div><strong>@(string.IsNullOrWhiteSpace(identifier.Label) ? "Identifier" : identifier.Label):</strong> @identifier.Value</div>
+                                            @if (!identifier.IsResourceId)
+                                            {
+                                                <div class="provider-system">@(string.IsNullOrWhiteSpace(identifier.System) ? "Issuing system not recorded" : identifier.System)</div>
+                                            }
+                                        </div>
+                                    }
+                                    @if (provider.IsResolved && provider.Identifiers.Count == 0) { <p class="provider-empty">No identifiers recorded.</p> }
+                                </div>
+                            }
+                            </details>
+                            }
+                        </div>
+
+@code {
+    [Parameter] public IReadOnlyList<PractitionerAssociation> Providers { get; set; } = [];
+    [Parameter] public string? Error { get; set; }
+}

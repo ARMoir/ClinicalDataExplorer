@@ -1,0 +1,73 @@
+@namespace ClinicalDataExplorer.Components
+@implements IAsyncDisposable
+@inject FhirService FhirService
+
+<section class="patient-list-card directory-results recent-reports" aria-busy="@(Busy ? "true" : "false")">
+    <div class="card-heading-row"><div><h2>@(Diagnostic ? "Recent reports" : "Recent patients")</h2><span>@(Diagnostic ? "Newest reports first" : "Ordered by most recent encounter") · 10 per page</span></div><button class="secondary-button" disabled="@Busy" @onclick="RefreshAsync">Refresh</button></div>
+    @if (Busy) { <div class="empty-state" role="status">Loading recent records and associated providers…</div> }
+    @if (Error is not null) { <div class="error-card" role="alert">@Error <button class="secondary-button" disabled="@Busy" @onclick="RefreshAsync">Retry</button></div> }
+    @if (!Busy && Current.Count == 0 && Error is null) { <div class="empty-state">No recent records were returned.</div> }
+    <div class="patient-list">
+        @foreach (var item in Current)
+        {
+            <article class="patient-row directory-patient" @key="item.Id">
+                <div class="directory-identity"><div><h3><a href="@item.Url">@item.Title</a></h3><span>@item.Description</span></div></div>
+                <dl class="directory-demographics"><div><dt>@(Diagnostic ? "Report date" : "Latest encounter")</dt><dd>@(item.Date?.ToLocalTime().ToString("MMM d, yyyy h:mm tt") ?? "Not recorded")</dd></div><div><dt>Record ID</dt><dd>@item.Id</dd></div></dl>
+                <ProviderList Providers="item.Providers" Error="@item.ProviderError" />
+                <a class="patient-open" href="@item.Url">Open report →</a>
+            </article>
+        }
+    </div>
+    <nav class="pagination" aria-label="Recent report pages"><button class="secondary-button" disabled="@(Busy || Page == 0)" @onclick="Previous">← Previous</button><span>Page @(Page + 1) · @Current.Count records</span><button class="secondary-button" disabled="@(Busy || Error is not null || (Page + 1 >= Pages.Count && !HasMore))" @onclick="NextAsync">Next →</button></nav>
+</section>
+
+@code {
+    [Parameter] public bool Diagnostic { get; set; }
+    private readonly CancellationTokenSource Cancellation = new();
+    private IAsyncEnumerator<RecentReportItem>? Iterator;
+    private readonly List<IReadOnlyList<RecentReportItem>> Pages = [];
+    private int Page;
+    private bool Busy, HasMore = true;
+    private string? Error;
+    private IReadOnlyList<RecentReportItem> Current => Page < Pages.Count ? Pages[Page] : [];
+    protected override Task OnInitializedAsync() => RefreshAsync();
+    private async Task RefreshAsync()
+    {
+        if (Busy) return;
+        Busy = true; Error = null;
+        try
+        {
+            if (Iterator is not null) await Iterator.DisposeAsync();
+            Pages.Clear(); Page = 0; HasMore = true;
+            Iterator = FhirService.StreamRecentReportsAsync(Diagnostic, Cancellation.Token).GetAsyncEnumerator(Cancellation.Token);
+            await ReadPageAsync();
+        }
+        catch (OperationCanceledException) when (Cancellation.IsCancellationRequested) { }
+        catch (Exception ex) { Error = ex.Message; }
+        finally { Busy = false; }
+    }
+    private async Task ReadPageAsync()
+    {
+        var items = new List<RecentReportItem>();
+        while (items.Count < 10 && await Iterator!.MoveNextAsync()) items.Add(Iterator.Current);
+        HasMore = items.Count == 10;
+        if (items.Count > 0 || Pages.Count == 0) Pages.Add(items);
+    }
+    private void Previous() { if (!Busy && Page > 0) Page--; }
+    private async Task NextAsync()
+    {
+        if (Busy) return;
+        if (Page + 1 < Pages.Count) { Page++; return; }
+        Busy = true;
+        try { var count = Pages.Count; await ReadPageAsync(); if (Pages.Count > count) Page++; }
+        catch (OperationCanceledException) when (Cancellation.IsCancellationRequested) { }
+        catch (Exception ex) { Error = ex.Message; }
+        finally { Busy = false; }
+    }
+    public async ValueTask DisposeAsync()
+    {
+        await Cancellation.CancelAsync();
+        if (!Busy && Iterator is not null) await Iterator.DisposeAsync();
+        Cancellation.Dispose();
+    }
+}

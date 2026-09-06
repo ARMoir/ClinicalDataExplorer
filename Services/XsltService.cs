@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Text;
 using System.Xml;
 using System.Xml.Xsl;
+using System.Xml.Linq;
 using ClinicalDataExplorer.Models;
 
 namespace ClinicalDataExplorer.Services;
@@ -24,6 +25,14 @@ public sealed class XsltService(IWebHostEnvironment environment)
     {
         if (!AllowedTemplates.Contains(templateName))
             throw new ArgumentException("Unknown XSLT report template.", nameof(templateName));
+
+        if (templateName is "PatientResources" or "DiagnosticReportBundle")
+        {
+            using var referenceReader = XmlReader.Create(new StringReader(xml), SecureReaderSettings());
+            var document = XDocument.Load(referenceReader);
+            FhirReferenceLinks.Annotate(document, new Uri(settings.FhirBaseUrl.TrimEnd('/') + "/"), localTargets: templateName == "PatientResources");
+            xml = document.ToString(SaveOptions.DisableFormatting);
+        }
 
         var path = Path.Combine(environment.ContentRootPath, "XSLT", templateName + ".xslt");
         var modified = File.GetLastWriteTimeUtc(path);

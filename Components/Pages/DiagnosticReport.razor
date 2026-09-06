@@ -1,27 +1,60 @@
 @namespace ClinicalDataExplorer.Components.Pages
 @page "/diagnostic-report"
+@page "/reports"
+@implements IDisposable
 @inject FhirService FhirService
 @inject XsltService XsltService
 @inject ApplicationSettingsService SettingsService
 
-<PageTitle>@($"{SettingsService.Current.ProductName} - Diagnostic Report")</PageTitle>
-<h1>Diagnostic Report</h1>
-<section class="search-card"><label for="diagnostic-id">DiagnosticReport identifier</label><div class="search-row"><input id="diagnostic-id" @bind="Identifier" @bind:event="oninput" @onkeydown="HandleKeyDown"/><button @onclick="LoadAsync" disabled="@(Loading || string.IsNullOrWhiteSpace(Identifier))">@(Loading ? "Loading..." : "Create report")</button></div></section>
+<PageTitle>@($"{SettingsService.Current.ProductName} - Reports")</PageTitle>
+<h1>Reports</h1>
+<section class="search-card"><label for="diagnostic-id">Report identifier</label><div class="search-row"><input id="diagnostic-id" @bind="Identifier" @bind:event="oninput" @onkeydown="HandleKeyDown"/><button @onclick="LoadAsync" disabled="@(Loading || string.IsNullOrWhiteSpace(Identifier))">@(Loading ? "Loading..." : "Open report")</button></div></section>
 @if (ErrorMessage is not null) { <div class="error-card" role="alert">@ErrorMessage</div> }
-@if (!string.IsNullOrWhiteSpace(ReportHtml)) { <div class="report-page-actions"><button class="secondary-button" onclick="window.print()">Print</button></div><section class="viewer-card">@((MarkupString)ReportHtml)</section> }
+@if (!string.IsNullOrWhiteSpace(ReportHtml))
+{
+    <div class="report-page-actions">
+        @if (Context?.PatientUrl is not null) { <a class="secondary-link" href="@Context.PatientUrl">Open patient →</a> }
+        @if (Context?.EncounterUrl is not null) { <a class="secondary-link" href="@Context.EncounterUrl">Open encounter →</a> }
+        <button class="secondary-button" onclick="window.print()">Print</button>
+    </div>
+    @if (Context?.PatientError is not null) { <div class="error-card" role="alert">@Context.PatientError</div> }
+    @((MarkupString)PatientHtml)
+    <section class="viewer-card">@((MarkupString)ReportHtml)</section>
+}
+<RecentReports Diagnostic="true" />
 
 @code {
+    [SupplyParameterFromQuery(Name = "reportId")] public string? ReportId { get; set; }
     private string Identifier { get; set; } = string.Empty;
     private string ReportHtml { get; set; } = string.Empty;
+    private string PatientHtml = "";
+    private ReportContext? Context;
     private string? ErrorMessage { get; set; }
     private bool Loading { get; set; }
+    private CancellationTokenSource? Request;
     private async Task HandleKeyDown(KeyboardEventArgs args) { if (args.Key == "Enter") await LoadAsync(); }
-    private async Task LoadAsync()
+    protected override Task OnParametersSetAsync() => string.IsNullOrWhiteSpace(ReportId) ? Task.CompletedTask : RenderAsync(ReportId);
+    private Task LoadAsync() => RenderAsync(null);
+    private async Task RenderAsync(string? reportId)
     {
-        if (Loading || string.IsNullOrWhiteSpace(Identifier)) return;
-        Loading = true; ErrorMessage = null; ReportHtml = string.Empty;
-        try { var response = await FhirService.GetDiagnosticReportBundleXmlAsync(Identifier); ReportHtml = XsltService.TransformDiagnosticReportBundle(response.Xml, SettingsService.Current); }
-        catch (Exception ex) { ErrorMessage = ex.Message; }
-        finally { Loading = false; }
+        if (reportId is null && string.IsNullOrWhiteSpace(Identifier)) return;
+        Request?.Cancel(); Request?.Dispose();
+        var request = Request = new CancellationTokenSource();
+        Loading = true; ErrorMessage = null; ReportHtml = string.Empty; PatientHtml = ""; Context = null;
+        try
+        {
+            var response = reportId is null ? await FhirService.GetDiagnosticReportBundleXmlAsync(Identifier, request.Token) : await FhirService.GetDiagnosticReportByIdAsync(reportId, request.Token);
+            var context = await FhirService.GetReportContextAsync(response.Xml, request.Token);
+            if (!request.IsCancellationRequested)
+            {
+                Context = context;
+                PatientHtml = context.PatientXml is null ? "" : XsltService.Transform("PatientDetails", context.PatientXml, SettingsService.Current);
+                ReportHtml = XsltService.TransformDiagnosticReportBundle(response.Xml, SettingsService.Current);
+            }
+        }
+        catch (OperationCanceledException) when (request.IsCancellationRequested) { }
+        catch (Exception ex) { if (!request.IsCancellationRequested) ErrorMessage = ex.Message; }
+        finally { if (!request.IsCancellationRequested) Loading = false; }
     }
+    public void Dispose() { Request?.Cancel(); Request?.Dispose(); }
 }

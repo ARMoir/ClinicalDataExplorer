@@ -163,7 +163,8 @@ public sealed class PatientExplorerTests
     {
         var html = Transform("PatientResources", Bundle(Entry($"<{type}><id value='test'/>{fields}</{type}>")));
         var visible = html.Split("<details", 2)[0];
-        Assert.Contains($"<dt><strong>{label}:</strong></dt>", visible);
+        if (type == "Observation") Assert.Contains("<th scope=\"col\">Flag</th>", visible);
+        else Assert.Contains($"<dt><strong>{label}:</strong></dt>", visible);
         Assert.Contains(first, visible);
         Assert.Contains(second, visible);
         Assert.DoesNotContain("<script>", visible);

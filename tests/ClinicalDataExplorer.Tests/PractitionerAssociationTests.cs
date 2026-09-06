@@ -50,6 +50,38 @@ public sealed class PractitionerAssociationTests
         Assert.Equal(1, handler.Calls);
     }
 
+    [Fact]
+    public async Task Shared_identifiers_consolidate_transitively_and_preserve_references_and_sources()
+    {
+        static string Id(string value, string label = "") => $"<identifier><system value='urn:staff'/><value value='{value}'/><type><text value='{label}'/></type></identifier>";
+        var entries = string.Concat(new[] { "a", "b", "c" }.Select(id => Entry($"<Observation><id value='obs-{id}'/><performer><reference value='Practitioner/{id}'/></performer></Observation>"))) +
+            Entry($"<Practitioner><id value='a'/><name><text value='Dr. Example'/></name>{Id("1")}</Practitioner>") +
+            Entry($"<Practitioner><id value='b'/><name><text value='Dr. Example'/></name>{Id("2")}</Practitioner>") +
+            Entry($"<Practitioner><id value='c'/>{Id("1", "Staff ID")}{Id("2")}</Practitioner>");
+        using var handler = new ScriptedHandler(_ => ScriptedHandler.Xml(Bundle(entries)));
+        using var context = new FhirTestContext(BaseUrl, handler);
+        var result = await context.Service.AddPatientPractitionersAsync(Patient);
+        var provider = Assert.Single(result.Practitioners);
+        Assert.Equal("Dr. Example", provider.Name);
+        Assert.Equal(new[] { "Practitioner/a", "Practitioner/b", "Practitioner/c" }, provider.References);
+        Assert.Equal(2, provider.Identifiers.Count);
+        Assert.Equal("Staff ID", provider.Identifiers.Single(i => i.Value == "1").Label);
+        Assert.Equal(3, provider.Sources.Count);
+        Assert.Equal(1, handler.Calls);
+    }
+
+    [Theory]
+    [InlineData("urn:other", "123")]
+    [InlineData("urn:npi", "456")]
+    public async Task Different_issuing_systems_or_values_do_not_merge_providers(string system, string value)
+    {
+        var entries = Entry("<Patient><id value='p1'/><generalPractitioner><reference value='Practitioner/doctor'/></generalPractitioner><generalPractitioner><reference value='Practitioner/other'/></generalPractitioner></Patient>") +
+            Entry(Provider) + Entry($"<Practitioner><id value='other'/><name><text value='Smith, Jane'/></name><identifier><system value='{system}'/><value value='{value}'/></identifier></Practitioner>");
+        using var handler = new ScriptedHandler(_ => ScriptedHandler.Xml(Bundle(entries)));
+        using var context = new FhirTestContext(BaseUrl, handler);
+        Assert.Equal(2, (await context.Service.AddPatientPractitionersAsync(Patient)).Practitioners.Count);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("<identifier><system value='urn:local'/></identifier>")]

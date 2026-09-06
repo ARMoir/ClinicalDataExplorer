@@ -3,23 +3,72 @@
   <xsl:output method="html" omit-xml-declaration="yes"/>
   <xsl:param name="facilityName"/><xsl:param name="logoPath"/><xsl:param name="primaryColor"/><xsl:param name="secondaryColor"/>
   <xsl:param name="resourceLabel">Record</xsl:param>
+  <xsl:param name="expandDetails">false</xsl:param>
   <xsl:variable name="upper" select="'ABCDEFGHIJKLMNOPQRSTUVWXYZ'" />
   <xsl:variable name="lower" select="'abcdefghijklmnopqrstuvwxyz'" />
   <xsl:template match="/">
     <div class="resource-records" style="--primary-color:{$primaryColor};--secondary-color:{$secondaryColor}">
-      <xsl:for-each select="f:Bundle/f:entry/f:resource/*">
+      <xsl:variable name="records" select="f:Bundle/f:entry/f:resource/*"/>
+      <xsl:choose>
+      <xsl:when test="$records and not($records[not(self::f:Observation)]) and not($records/descendant::*/@value[contains(., '&#10;') or contains(., '\n')])">
+        <div class="table-wrap"><table class="results-table patient-lab-results">
+          <thead><tr><th scope="col">Test</th><th scope="col">Result</th><th scope="col">Flag</th><th scope="col">Reference range</th><th scope="col">Date</th><th scope="col">Provider</th><th scope="col">Status</th></tr></thead>
+          <xsl:for-each select="$records"><tbody class="lab-record">
+            <xsl:if test="@p:anchor"><xsl:attribute name="id"><xsl:value-of select="@p:anchor"/></xsl:attribute></xsl:if>
+            <xsl:apply-templates select="." mode="lab-row"/>
+            <xsl:apply-templates select="f:component" mode="lab-row"/>
+            <tr class="lab-details-row"><td colspan="7">
+              <xsl:for-each select="f:note/f:text"><p class="lab-note"><strong>Note: </strong><xsl:value-of select="@value"/></p></xsl:for-each>
+              <details class="resource-all-fields"><xsl:if test="$expandDetails = 'true'"><xsl:attribute name="open">open</xsl:attribute></xsl:if><summary>All record details</summary><dl class="resource-fields"><xsl:apply-templates select="*" mode="field"/></dl></details>
+            </td></tr>
+          </tbody></xsl:for-each>
+        </table></div>
+      </xsl:when>
+      <xsl:otherwise>
+      <xsl:for-each select="$records">
         <xsl:variable name="reportText" select="self::f:Observation/descendant::*/@value[contains(., '&#10;') or contains(., '\n')]" />
         <article class="resource-record">
+          <xsl:if test="@p:anchor"><xsl:attribute name="id"><xsl:value-of select="@p:anchor"/></xsl:attribute></xsl:if>
           <header><h3><xsl:choose><xsl:when test="f:code/f:text/@value"><xsl:value-of select="f:code/f:text/@value"/></xsl:when><xsl:when test="f:code/f:coding/f:display/@value"><xsl:value-of select="f:code/f:coding[1]/f:display/@value"/></xsl:when><xsl:when test="f:type/f:text/@value"><xsl:value-of select="f:type[1]/f:text/@value"/></xsl:when><xsl:when test="f:name/f:text/@value"><xsl:value-of select="f:name[1]/f:text/@value"/></xsl:when><xsl:when test="f:name/@value"><xsl:value-of select="f:name/@value"/></xsl:when><xsl:when test="f:title/@value"><xsl:value-of select="f:title/@value"/></xsl:when><xsl:otherwise><xsl:value-of select="$resourceLabel"/></xsl:otherwise></xsl:choose></h3>
           <xsl:if test="self::f:Encounter"><a href="/encounter/{f:id/@value}">Open encounter report →</a></xsl:if></header>
           <div class="resource-summary"><span>Record ID: <xsl:value-of select="f:id/@value"/></span><xsl:if test="f:status/@value"><span class="status-chip"><xsl:value-of select="f:status/@value"/></span></xsl:if><span><xsl:value-of select="f:effectiveDateTime/@value | f:period/f:start/@value | f:authoredOn/@value | f:recordedDate/@value | f:date/@value"/></span></div>
           <xsl:if test="not($reportText) and (f:valueQuantity or f:valueString or f:valueCodeableConcept or f:valueBoolean or f:valueInteger)"><p class="observation-value"><xsl:value-of select="f:valueQuantity/f:comparator/@value"/><xsl:value-of select="f:valueQuantity/f:value/@value | f:valueString/@value | f:valueBoolean/@value | f:valueInteger/@value"/><xsl:text> </xsl:text><xsl:choose><xsl:when test="f:valueQuantity/f:unit/@value"><xsl:value-of select="f:valueQuantity/f:unit/@value"/></xsl:when><xsl:otherwise><xsl:value-of select="f:valueQuantity/f:code/@value"/></xsl:otherwise></xsl:choose><xsl:choose><xsl:when test="f:valueCodeableConcept/f:text/@value"><xsl:value-of select="f:valueCodeableConcept/f:text/@value"/></xsl:when><xsl:otherwise><xsl:value-of select="f:valueCodeableConcept/f:coding[1]/f:display/@value"/></xsl:otherwise></xsl:choose></p></xsl:if>
           <xsl:for-each select="$reportText"><div class="clinical-document"><xsl:call-template name="render-report-lines"><xsl:with-param name="text" select="."/></xsl:call-template></div></xsl:for-each>
           <dl class="record-highlights"><xsl:apply-templates select="." mode="highlights"/></dl>
-          <details class="resource-all-fields"><summary>All record details</summary><dl class="resource-fields"><xsl:apply-templates select="*" mode="field"/></dl></details>
+          <details class="resource-all-fields"><xsl:if test="$expandDetails = 'true'"><xsl:attribute name="open">open</xsl:attribute></xsl:if><summary>All record details</summary><dl class="resource-fields"><xsl:apply-templates select="*" mode="field"/></dl></details>
         </article>
       </xsl:for-each>
+      </xsl:otherwise></xsl:choose>
     </div>
+  </xsl:template>
+  <xsl:template match="f:Observation | f:component" mode="lab-row">
+    <xsl:variable name="observation" select="ancestor-or-self::f:Observation[1]"/>
+    <xsl:variable name="flag"><xsl:choose><xsl:when test="f:interpretation/f:coding/f:code/@value"><xsl:value-of select="f:interpretation[1]/f:coding[1]/f:code/@value"/></xsl:when><xsl:otherwise><xsl:apply-templates select="f:interpretation[1]" mode="readable"/></xsl:otherwise></xsl:choose></xsl:variable>
+    <xsl:variable name="normalizedFlag" select="translate(translate(normalize-space($flag), $lower, $upper), '* ', '')"/>
+    <xsl:variable name="critical" select="$normalizedFlag='HH' or $normalizedFlag='LL' or $normalizedFlag='AA' or contains($normalizedFlag, 'CRIT')"/>
+    <xsl:variable name="abnormal" select="$critical or $normalizedFlag='H' or $normalizedFlag='L' or $normalizedFlag='A' or contains($normalizedFlag, 'HIGH') or contains($normalizedFlag, 'LOW') or contains($normalizedFlag, 'ABNORMAL')"/>
+    <tr>
+      <xsl:attribute name="class"><xsl:text>lab-result-row</xsl:text><xsl:if test="self::f:component"><xsl:text> lab-component</xsl:text></xsl:if><xsl:if test="$abnormal"><xsl:text> lab-abnormal</xsl:text></xsl:if></xsl:attribute>
+      <td><strong class="result-name"><xsl:choose><xsl:when test="f:code"><xsl:apply-templates select="f:code" mode="readable"/></xsl:when><xsl:otherwise>Observation</xsl:otherwise></xsl:choose></strong><xsl:if test="f:code/f:coding/f:code/@value"><div class="result-code"><xsl:value-of select="f:code/f:coding[1]/f:code/@value"/></div></xsl:if><xsl:if test="self::f:Observation"><div class="result-code">Record ID: <xsl:value-of select="f:id/@value"/></div></xsl:if></td>
+      <td class="lab-value"><xsl:choose>
+        <xsl:when test="*[starts-with(local-name(), 'value')]"><xsl:apply-templates select="*[starts-with(local-name(), 'value')][1]" mode="readable"/></xsl:when>
+        <xsl:when test="f:dataAbsentReason"><xsl:apply-templates select="f:dataAbsentReason" mode="readable"/></xsl:when>
+        <xsl:when test="f:component">See component results</xsl:when>
+        <xsl:otherwise>—</xsl:otherwise>
+      </xsl:choose></td>
+      <td><xsl:choose><xsl:when test="string-length($flag) &gt; 0"><span><xsl:attribute name="class"><xsl:text>lab-flag</xsl:text><xsl:if test="$critical"><xsl:text> lab-critical</xsl:text></xsl:if></xsl:attribute><xsl:value-of select="$flag"/></span></xsl:when><xsl:otherwise>—</xsl:otherwise></xsl:choose></td>
+      <td><xsl:choose><xsl:when test="f:referenceRange"><xsl:for-each select="f:referenceRange"><xsl:if test="position() &gt; 1"><br/></xsl:if><xsl:apply-templates select="." mode="readable"/></xsl:for-each></xsl:when><xsl:otherwise>—</xsl:otherwise></xsl:choose></td>
+      <td class="lab-date"><xsl:choose>
+        <xsl:when test="$observation/f:effectiveDateTime/@value"><xsl:value-of select="$observation/f:effectiveDateTime/@value"/></xsl:when>
+        <xsl:when test="$observation/f:effectiveInstant/@value"><xsl:value-of select="$observation/f:effectiveInstant/@value"/></xsl:when>
+        <xsl:when test="$observation/f:effectivePeriod"><xsl:apply-templates select="$observation/f:effectivePeriod" mode="readable"/></xsl:when>
+        <xsl:when test="$observation/f:issued/@value"><xsl:value-of select="$observation/f:issued/@value"/></xsl:when>
+        <xsl:when test="$observation/f:meta/f:lastUpdated/@value"><span class="result-code">Updated: </span><xsl:value-of select="$observation/f:meta/f:lastUpdated/@value"/></xsl:when>
+        <xsl:otherwise>—</xsl:otherwise>
+      </xsl:choose></td>
+      <td><xsl:choose><xsl:when test="$observation/f:performer"><xsl:for-each select="$observation/f:performer"><xsl:if test="position() &gt; 1"><br/></xsl:if><xsl:apply-templates select="." mode="readable"/></xsl:for-each></xsl:when><xsl:otherwise>—</xsl:otherwise></xsl:choose></td>
+      <td><span class="status-chip"><xsl:value-of select="$observation/f:status/@value"/></span></td>
+    </tr>
   </xsl:template>
   <xsl:template match="*" mode="highlights"><xsl:apply-templates select="f:identifier | f:description | f:type | f:category | f:period | f:author | f:performer | f:note" mode="highlight"/></xsl:template>
   <xsl:template match="f:Patient" mode="highlights"><xsl:apply-templates select="f:name | f:birthDate | f:gender | f:telecom | f:address | f:maritalStatus | f:generalPractitioner | f:managingOrganization | f:identifier | f:note" mode="highlight"/></xsl:template>
@@ -268,9 +317,9 @@
        Add resource-specific templates in this stylesheet to customize clinical presentation.
        Narrative is rendered as text; server-provided HTML and URLs are never executed. -->
   <xsl:template match="*" mode="field">
-    <div class="resource-field"><dt><xsl:value-of select="local-name()"/></dt><dd>
+    <div class="resource-field"><xsl:if test="@p:anchor"><xsl:attribute name="id"><xsl:value-of select="@p:anchor"/></xsl:attribute></xsl:if><dt><xsl:value-of select="local-name()"/></dt><dd>
       <xsl:if test="@p:provider"><span class="field-value"><strong>Provider: </strong><xsl:value-of select="@p:provider"/></span></xsl:if>
-      <xsl:for-each select="@*[namespace-uri() != 'urn:clinical-data-explorer:presentation']"><span class="field-value"><xsl:if test="local-name() != 'value'"><strong><xsl:value-of select="local-name()"/>: </strong></xsl:if><xsl:value-of select="."/></span></xsl:for-each>
+      <xsl:for-each select="@*[namespace-uri() != 'urn:clinical-data-explorer:presentation']"><span class="field-value"><xsl:if test="local-name() != 'value'"><strong><xsl:value-of select="local-name()"/>: </strong></xsl:if><xsl:choose><xsl:when test="local-name() = 'value' and parent::f:reference/@p:href"><a class="fhir-reference-link" href="{../@p:href}"><xsl:value-of select="."/></a></xsl:when><xsl:otherwise><xsl:value-of select="."/></xsl:otherwise></xsl:choose></span></xsl:for-each>
       <xsl:choose><xsl:when test="namespace-uri()='http://www.w3.org/1999/xhtml'"><span><xsl:value-of select="."/></span></xsl:when><xsl:when test="*"><dl><xsl:apply-templates select="*" mode="field"/></dl></xsl:when><xsl:otherwise><xsl:value-of select="text()"/></xsl:otherwise></xsl:choose>
     </dd></div>
   </xsl:template>

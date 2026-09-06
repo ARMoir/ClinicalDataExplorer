@@ -65,8 +65,8 @@
           <div class="report-grid">
             <div class="field"><span class="label">Record ID</span><span class="value"><xsl:value-of select="$report/f:id/@value" /></span></div>
             <div class="field"><span class="label">Identifier</span><span class="value"><xsl:value-of select="$report/f:identifier[1]/f:value/@value" /></span></div>
-            <div class="field"><span class="label">Subject</span><span class="value"><xsl:value-of select="$report/f:subject/f:reference/@value" /></span></div>
-            <div class="field"><span class="label">Encounter</span><span class="value"><xsl:value-of select="$report/f:encounter/f:reference/@value" /></span></div>
+            <div class="field"><span class="label">Patient</span><span class="value"><xsl:apply-templates select="$report/f:subject/f:reference" mode="report-link" /></span></div>
+            <div class="field"><span class="label">Encounter</span><span class="value"><xsl:apply-templates select="$report/f:encounter/f:reference" mode="report-link" /></span></div>
             <div class="field">
               <span class="label">Effective</span>
               <span class="value">
@@ -80,6 +80,7 @@
               </span>
             </div>
             <div class="field"><span class="label">Issued</span><span class="value"><xsl:value-of select="$report/f:issued/@value" /></span></div>
+            <xsl:if test="$report/f:performer"><div class="field"><span class="label">Providers</span><span class="value"><xsl:for-each select="$report"><xsl:call-template name="render-performers"/></xsl:for-each></span></div></xsl:if>
           </div>
 
           <xsl:if test="$report/f:conclusion/@value">
@@ -114,8 +115,8 @@
           </xsl:if>
 
           <details class="references">
-            <summary>DiagnosticReport result references</summary>
-            <ul><xsl:for-each select="$report/f:result"><li><xsl:value-of select="f:reference/@value" /></li></xsl:for-each></ul>
+            <summary>Related records</summary>
+            <ul><xsl:for-each select="$report//f:reference"><li><xsl:apply-templates select="." mode="report-link" /></li></xsl:for-each></ul>
           </details>
         </xsl:when>
         <xsl:otherwise>
@@ -125,6 +126,9 @@
     </div>
   </xsl:template>
 
+  <xsl:template match="f:reference" mode="report-link">
+    <xsl:choose><xsl:when test="@p:href"><a class="fhir-reference-link" href="{@p:href}"><xsl:value-of select="@value"/></a></xsl:when><xsl:otherwise><xsl:value-of select="@value"/></xsl:otherwise></xsl:choose>
+  </xsl:template>
   <xsl:template match="f:Observation" mode="narrative">
     <section class="narrative-card">
       <div class="narrative-card-header">
@@ -303,7 +307,7 @@
     <xsl:variable name="roleOrganization" select="/f:Bundle/f:entry/f:resource/f:Organization[concat('Organization/', f:id/@value) = $roleOrganizationRef][1]" />
 
     <xsl:choose>
-      <xsl:when test="$performer/@p:provider"><xsl:value-of select="$performer/@p:provider" /></xsl:when>
+      <xsl:when test="$performer/@p:provider"><xsl:choose><xsl:when test="$performer/f:reference/@p:href"><a class="fhir-reference-link" href="{$performer/f:reference/@p:href}"><xsl:value-of select="$performer/@p:provider"/></a></xsl:when><xsl:otherwise><xsl:value-of select="$performer/@p:provider"/></xsl:otherwise></xsl:choose></xsl:when>
       <!-- Source display remains a fallback when no practitioner is referenced. -->
       <xsl:when test="$performer/f:display/@value">
         <xsl:value-of select="$performer/f:display/@value" />

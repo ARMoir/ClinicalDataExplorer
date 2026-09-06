@@ -3,7 +3,7 @@
   <xsl:output method="html" omit-xml-declaration="yes"/>
   <xsl:param name="facilityName"/><xsl:param name="logoPath"/><xsl:param name="primaryColor"/><xsl:param name="secondaryColor"/>
   <xsl:template match="/f:Patient">
-    <section class="xslt-report xslt-patient-details" style="--primary-color:{$primaryColor};--secondary-color:{$secondaryColor};border-top:4px solid {$primaryColor}">
+    <section class="xslt-report xslt-patient-details" style="--primary-color:{$primaryColor};--secondary-color:{$secondaryColor}">
       <div class="patient-report-brand"><xsl:if test="string-length($logoPath) &gt; 0"><img src="{$logoPath}" alt="{$facilityName}"/></xsl:if><strong style="color:{$secondaryColor}"><xsl:value-of select="$facilityName"/></strong></div>
       <div class="xslt-report-heading"><div><span class="eyebrow">Patient</span><h2>
         <xsl:choose>

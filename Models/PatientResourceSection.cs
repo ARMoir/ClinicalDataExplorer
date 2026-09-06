@@ -6,7 +6,7 @@ public sealed class PatientResourceSection(string resourceType, IReadOnlyList<XE
 {
     public string ResourceType { get; } = resourceType;
     public string Label => ResourcePresentation.Label(ResourceType);
-    public IReadOnlyList<XElement> Resources { get; } = resources;
+    public IReadOnlyList<XElement> Resources { get; } = resources.OrderByDescending(ResourceChronology.Date).ToList();
     public int Count => Resources.Count;
     public bool Expanded { get; set; }
     public int Page { get; set; }

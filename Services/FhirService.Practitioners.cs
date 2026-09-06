@@ -24,7 +24,7 @@ public sealed partial class FhirService
             var associations = await ResolvePractitionerReferencesAsync(ParseDocument(xml), cancellationToken);
             return patient with
             {
-                Practitioners = associations,
+                Practitioners = ConsolidatePractitioners(associations),
                 PractitionerStatus = associations.Any(p => !p.IsResolved)
                     ? PractitionerAssociationStatus.Incomplete : PractitionerAssociationStatus.Complete,
                 PractitionerLookupError = associations.Any(p => !p.IsResolved)
@@ -40,6 +40,42 @@ public sealed partial class FhirService
                 PractitionerLookupError = "Provider associations unavailable. " + ex.Message
             };
         }
+    }
+
+    private static IReadOnlyList<PractitionerAssociation> ConsolidatePractitioners(IReadOnlyList<PractitionerAssociation> providers)
+    {
+        var parents = Enumerable.Range(0, providers.Count).ToArray();
+        var matches = new Dictionary<(string Kind, string System, string Value), int>();
+        int Root(int index)
+        {
+            while (parents[index] != index) { parents[index] = parents[parents[index]]; index = parents[index]; }
+            return index;
+        }
+        for (var i = 0; i < providers.Count; i++)
+        {
+            var keys = providers[i].References.Select(r => (Kind: "reference", System: "", Value: r))
+                .Concat(providers[i].Identifiers.Where(id => !string.IsNullOrWhiteSpace(id.Value))
+                    .Select(id => (Kind: id.IsResourceId ? "resource-id" : "identifier", id.System, id.Value)));
+            foreach (var key in keys)
+            {
+                if (matches.TryGetValue(key, out var previous)) parents[Root(i)] = Root(previous);
+                else matches[key] = i;
+            }
+        }
+        return Enumerable.Range(0, providers.Count).GroupBy(Root).Select(group =>
+        {
+            var records = group.Select(i => providers[i]).ToList();
+            var preferred = records.OrderByDescending(p => p.IsResolved && p.Name != "Name not recorded")
+                .ThenBy(p => p.Reference, StringComparer.Ordinal).First();
+            return preferred with
+            {
+                References = records.SelectMany(p => p.References).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList(),
+                Identifiers = records.SelectMany(p => p.Identifiers).GroupBy(id => (id.System, id.Value, id.IsResourceId))
+                    .Select(ids => ids.OrderByDescending(id => !string.IsNullOrWhiteSpace(id.Label)).First()).ToList(),
+                Sources = records.SelectMany(p => p.Sources).Distinct(StringComparer.Ordinal).ToList(),
+                IsResolved = records.All(p => p.IsResolved)
+            };
+        }).OrderBy(p => p.Name, StringComparer.Ordinal).ThenBy(p => p.Reference, StringComparer.Ordinal).ToList();
     }
 
     private async Task<IReadOnlyList<PractitionerAssociation>> ResolvePractitionerReferencesAsync(

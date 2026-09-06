@@ -1,0 +1,38 @@
+@namespace ClinicalDataExplorer.Components.Pages
+@page "/record"
+@implements IDisposable
+@inject FhirService FhirService
+@inject XsltService XsltService
+@inject ApplicationSettingsService SettingsService
+
+<PageTitle>Referenced record</PageTitle>
+<div class="report-page-actions"><button class="secondary-button" onclick="window.history.back()">← Back</button><a class="secondary-link" href="/">Patients</a><button class="secondary-button" onclick="window.print()">Print</button></div>
+<h1>Referenced record</h1>
+@if (Loading) { <div class="empty-state" role="status">Loading record…</div> }
+@if (Error is not null) { <div class="error-card" role="alert">@Error</div> }
+@((MarkupString)Html)
+
+@code {
+    [SupplyParameterFromQuery(Name = "reference")] public string? Reference { get; set; }
+    private CancellationTokenSource? Request;
+    private bool Loading;
+    private string Html = "";
+    private string? Error;
+    protected override async Task OnParametersSetAsync()
+    {
+        Request?.Cancel(); Request?.Dispose();
+        var request = Request = new CancellationTokenSource();
+        Loading = true; Html = ""; Error = null;
+        try
+        {
+            var section = await FhirService.GetReferencedRecordAsync(Reference ?? "", request.Token);
+            if (request.IsCancellationRequested) return;
+            Html = XsltService.Transform("PatientResources", section.PageXml(), SettingsService.Current,
+                new Dictionary<string, string> { ["resourceLabel"] = section.Label, ["expandDetails"] = "true" });
+        }
+        catch (OperationCanceledException) when (request.IsCancellationRequested) { }
+        catch (Exception ex) { if (!request.IsCancellationRequested) Error = ex.Message; }
+        finally { if (!request.IsCancellationRequested) Loading = false; }
+    }
+    public void Dispose() { Request?.Cancel(); Request?.Dispose(); }
+}

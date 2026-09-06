@@ -43,38 +43,16 @@
                 {
                     var patient = CurrentPatients[patientIndex];
                     var avatarColor = patientIndex % 2 == 0 ? "var(--primary-color)" : "var(--secondary-color)";
-                    <a class="patient-row directory-patient" href="@($"/patient/{Uri.EscapeDataString(patient.Id)}")">
-                        <div class="directory-identity"><span class="patient-avatar" style="background-color: @avatarColor" aria-hidden="true">@patient.Initials</span><div><h3>@patient.DisplayName</h3><span>@(patient.Identifiers.Count > 0 ? string.Join(" · ", patient.Identifiers) : "No identifier recorded")</span></div><span class="status-chip">@(patient.Active == false ? "Inactive" : "Active")</span></div>
+                    <article class="patient-row directory-patient" @key="patient.Id">
+                        <div class="directory-identity"><span class="patient-avatar" style="background-color: @avatarColor" aria-hidden="true">@patient.Initials</span><div><h3><a href="@($"/patient/{Uri.EscapeDataString(patient.Id)}")">@patient.DisplayName</a></h3><span>@(patient.Identifiers.Count > 0 ? string.Join(" · ", patient.Identifiers) : "No identifier recorded")</span></div><span class="status-chip">@(patient.Active == false ? "Inactive" : "Active")</span></div>
                         <dl class="directory-demographics">
                             <div><dt>Date of birth</dt><dd>@Display(patient.BirthDate)</dd></div><div><dt>Gender</dt><dd>@Display(patient.Gender)</dd></div>
                             <div><dt>Phone</dt><dd>@Display(patient.Phone)</dd></div><div><dt>@(IsSearch ? "Last updated" : "Latest encounter")</dt><dd>@((IsSearch ? patient.LastUpdated : patient.MostRecentEncounter)?.ToLocalTime().ToString("MMM d, yyyy") ?? "Not recorded")</dd></div>
                             <div class="directory-address"><dt>Address</dt><dd>@Display(patient.Address)</dd></div><div><dt>Email</dt><dd>@Display(patient.Email)</dd></div><div><dt>Record ID</dt><dd>@patient.Id</dd></div>
                         </dl>
-                        <div class="patient-providers">
-                            <strong class="patient-providers-label">Associated providers:</strong>
-                            @if (patient.PractitionerLookupError is not null) { <p class="provider-lookup-error">@patient.PractitionerLookupError</p> }
-                            @if (patient.Practitioners.Count == 0 && patient.PractitionerLookupError is null) { <span>No practitioner references returned.</span> }
-                            @foreach (var provider in patient.Practitioners)
-                            {
-                                <div class="patient-provider">
-                                    <h4 class="provider-name">@provider.Name</h4>
-                                    <p class="provider-reference"><strong>Record reference:</strong> @provider.Reference</p>
-                                    @foreach (var identifier in provider.Identifiers)
-                                    {
-                                        <div class="provider-identifier">
-                                            <div><strong>@(string.IsNullOrWhiteSpace(identifier.Label) ? "Identifier" : identifier.Label):</strong> @identifier.Value</div>
-                                            @if (!identifier.IsResourceId)
-                                            {
-                                                <div class="provider-system">@(string.IsNullOrWhiteSpace(identifier.System) ? "Issuing system not recorded" : identifier.System)</div>
-                                            }
-                                        </div>
-                                    }
-                                    @if (provider.IsResolved && provider.Identifiers.Count == 0) { <p class="provider-empty">No identifiers recorded.</p> }
-                                </div>
-                            }
-                        </div>
-                        <span class="patient-open">Open patient report →</span>
-                    </a>
+                        <ProviderList Providers="patient.Practitioners" Error="@patient.PractitionerLookupError" />
+                        <a class="patient-open" href="@($"/patient/{Uri.EscapeDataString(patient.Id)}")">Open patient report →</a>
+                    </article>
                 }
             </div>
         }
