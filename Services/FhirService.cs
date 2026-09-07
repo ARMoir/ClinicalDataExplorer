@@ -386,7 +386,10 @@ public sealed partial class FhirService(
         string.Equals(requestUri.Scheme, baseUri.Scheme, StringComparison.OrdinalIgnoreCase) &&
         string.Equals(requestUri.Host, baseUri.Host, StringComparison.OrdinalIgnoreCase) &&
         requestUri.Port == baseUri.Port &&
-        requestUri.AbsolutePath.StartsWith(baseUri.AbsolutePath, StringComparison.OrdinalIgnoreCase);
+        // HAPI places continuation queries on the base endpoint without its
+        // trailing slash (e.g. /baseR4?_getpages=...), which is still in scope.
+        (string.Equals(requestUri.AbsolutePath, baseUri.AbsolutePath.TrimEnd('/'), StringComparison.OrdinalIgnoreCase) ||
+         requestUri.AbsolutePath.StartsWith(baseUri.AbsolutePath, StringComparison.OrdinalIgnoreCase));
 
     private static IReadOnlyList<PatientSummary> ParsePatients(string xml)
     {

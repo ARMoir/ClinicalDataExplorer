@@ -1,0 +1,39 @@
+@namespace ClinicalDataExplorer.Components.Pages
+@page "/reports"
+@page "/diagnostic-report"
+@inject ApplicationSettingsService SettingsService
+@inject NavigationManager Navigation
+
+<PageTitle>@($"{SettingsService.Current.ProductName} - Reports")</PageTitle>
+<h1>Reports</h1>
+<section class="search-card">
+    <label for="diagnostic-id">Report identifier</label>
+    <div class="search-row">
+        <input id="diagnostic-id" @bind="Identifier" @bind:event="oninput" @onkeydown="HandleKeyDown" />
+        <button @onclick="OpenReport" disabled="@string.IsNullOrWhiteSpace(Identifier)">Open report</button>
+    </div>
+</section>
+@if (string.IsNullOrWhiteSpace(ReportId))
+{
+    <RecentReports Diagnostic="true" />
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "reportId")] public string? ReportId { get; set; }
+    private string Identifier = string.Empty;
+
+    protected override void OnParametersSet()
+    {
+        // Keep existing bookmarks to individual reports working.
+        if (!string.IsNullOrWhiteSpace(ReportId))
+            Navigation.NavigateTo("/reports/view?reportId=" + Uri.EscapeDataString(ReportId), replace: true);
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs args) { if (args.Key == "Enter") OpenReport(); }
+
+    private void OpenReport()
+    {
+        if (!string.IsNullOrWhiteSpace(Identifier))
+            Navigation.NavigateTo("/reports/view?identifier=" + Uri.EscapeDataString(Identifier.Trim()));
+    }
+}

@@ -1,15 +1,15 @@
 @namespace ClinicalDataExplorer.Components.Pages
-@page "/diagnostic-report"
-@page "/reports"
+@page "/reports/view"
 @implements IDisposable
 @inject FhirService FhirService
 @inject XsltService XsltService
 @inject ApplicationSettingsService SettingsService
 
-<PageTitle>@($"{SettingsService.Current.ProductName} - Reports")</PageTitle>
-<h1>Reports</h1>
-<section class="search-card"><label for="diagnostic-id">Report identifier</label><div class="search-row"><input id="diagnostic-id" @bind="Identifier" @bind:event="oninput" @onkeydown="HandleKeyDown"/><button @onclick="LoadAsync" disabled="@(Loading || string.IsNullOrWhiteSpace(Identifier))">@(Loading ? "Loading..." : "Open report")</button></div></section>
-@if (ErrorMessage is not null) { <div class="error-card" role="alert">@ErrorMessage</div> }
+<PageTitle>@($"{SettingsService.Current.ProductName} - Diagnostic Report")</PageTitle>
+<div class="report-page-actions"><a class="secondary-link" href="/reports">← Back to Reports</a></div>
+<h1>Diagnostic Report</h1>
+@if (Loading) { <div class="empty-state" role="status">Loading report…</div> }
+@if (ErrorMessage is not null) { <div class="error-card" role="alert">@ErrorMessage <button class="secondary-button" @onclick="LoadAsync">Retry</button></div> }
 @if (!string.IsNullOrWhiteSpace(ReportHtml))
 {
     <div class="report-page-actions">
@@ -21,29 +21,32 @@
     @((MarkupString)PatientHtml)
     <section class="viewer-card">@((MarkupString)ReportHtml)</section>
 }
-<RecentReports Diagnostic="true" />
 
 @code {
     [SupplyParameterFromQuery(Name = "reportId")] public string? ReportId { get; set; }
-    private string Identifier { get; set; } = string.Empty;
+    [SupplyParameterFromQuery] public string? Identifier { get; set; }
     private string ReportHtml { get; set; } = string.Empty;
     private string PatientHtml = "";
     private ReportContext? Context;
     private string? ErrorMessage { get; set; }
     private bool Loading { get; set; }
     private CancellationTokenSource? Request;
-    private async Task HandleKeyDown(KeyboardEventArgs args) { if (args.Key == "Enter") await LoadAsync(); }
-    protected override Task OnParametersSetAsync() => string.IsNullOrWhiteSpace(ReportId) ? Task.CompletedTask : RenderAsync(ReportId);
-    private Task LoadAsync() => RenderAsync(null);
+    protected override Task OnParametersSetAsync() => LoadAsync();
+    private Task LoadAsync() => RenderAsync(string.IsNullOrWhiteSpace(ReportId) ? null : ReportId);
     private async Task RenderAsync(string? reportId)
     {
-        if (reportId is null && string.IsNullOrWhiteSpace(Identifier)) return;
         Request?.Cancel(); Request?.Dispose();
         var request = Request = new CancellationTokenSource();
         Loading = true; ErrorMessage = null; ReportHtml = string.Empty; PatientHtml = ""; Context = null;
+        if (reportId is null && string.IsNullOrWhiteSpace(Identifier))
+        {
+            Loading = false;
+            ErrorMessage = "Choose a report from the Reports page.";
+            return;
+        }
         try
         {
-            var response = reportId is null ? await FhirService.GetDiagnosticReportBundleXmlAsync(Identifier, request.Token) : await FhirService.GetDiagnosticReportByIdAsync(reportId, request.Token);
+            var response = reportId is null ? await FhirService.GetDiagnosticReportBundleXmlAsync(Identifier!, request.Token) : await FhirService.GetDiagnosticReportByIdAsync(reportId, request.Token);
             var context = await FhirService.GetReportContextAsync(response.Xml, request.Token);
             if (!request.IsCancellationRequested)
             {

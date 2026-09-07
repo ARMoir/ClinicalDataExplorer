@@ -39,7 +39,7 @@ public sealed class RecentReportTests
             Assert.Equal("staff1", Assert.Single(provider.Identifiers).Value);
             Assert.Equal("urn:staff", provider.Identifiers[0].System);
             Assert.NotEmpty(provider.Sources);
-            Assert.Equal("/reports?reportId=" + item.Id, item.Url);
+            Assert.Equal("/reports/view?reportId=" + item.Id, item.Url);
         });
     }
 

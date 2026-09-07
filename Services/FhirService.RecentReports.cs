@@ -56,7 +56,7 @@ public sealed partial class FhirService
                 var description = Value(subject, "display");
                 if (description.Length == 0) description = Value(subject, "reference");
                 yield return new(id, string.IsNullOrWhiteSpace(title) ? "Diagnostic report" : title, description,
-                    ResourceChronology.Date(report), "/reports?reportId=" + Uri.EscapeDataString(id), providers, status, error);
+                    ResourceChronology.Date(report), "/reports/view?reportId=" + Uri.EscapeDataString(id), providers, status, error);
             }
             next = GetNextPageUri(document, baseUri);
         }

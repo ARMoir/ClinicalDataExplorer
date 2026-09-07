@@ -35,7 +35,31 @@ public sealed class FhirCompatibilityTests
     }
 
     [Theory]
+    [InlineData("https://fhir.example.test/r4?_getpages=opaque%2Btoken%3D&_getpagesoffset=100&_format=xml")]
+    [InlineData("/r4?_getpages=opaque%2Btoken%3D&_getpagesoffset=100&_format=xml")]
+    public async Task Paging_accepts_the_exact_base_endpoint_without_a_trailing_slash(string continuation)
+    {
+        var next = new Uri(new Uri(BaseUrl), continuation).AbsoluteUri;
+        using var handler = new ScriptedHandler(
+            _ => ScriptedHandler.Xml(Bundle("", continuation)),
+            request =>
+            {
+                Assert.Equal(next, request.RequestUri!.AbsoluteUri);
+                return ScriptedHandler.Xml(Bundle(Entry("<Observation><id value='page2'/></Observation>")));
+            });
+        using var context = new FhirTestContext(BaseUrl, handler);
+        var observation = Assert.Single(await context.Service.GetEncounterObservationsAsync("e1"));
+        Assert.Equal("page2", observation.Id);
+        Assert.Equal(2, handler.Calls);
+    }
+
+    [Theory]
     [InlineData("https://other.example.test/r4/Patient?ct=secret")]
+    [InlineData("https://other.example.test/r4?ct=secret")]
+    [InlineData("https://fhir.example.test:8443/r4?ct=secret")]
+    [InlineData("https://fhir.example.test/r4-other?ct=secret")]
+    [InlineData("https://fhir.example.test/?ct=secret")]
+    [InlineData("http://fhir.example.test/r4?ct=secret")]
     [InlineData("https://fhir.example.test/r4-other/Patient?ct=secret")]
     [InlineData("http://fhir.example.test/r4/Patient?ct=secret")]
     public async Task Paging_cannot_leave_the_configured_server(string next)
