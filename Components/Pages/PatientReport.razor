@@ -4,9 +4,10 @@
 @inject FhirService FhirService
 @inject XsltService XsltService
 @inject ApplicationSettingsService SettingsService
+@inject UserActivityService Activity
 
 <PageTitle>@($"{SettingsService.Current.ProductName} - Patient Report")</PageTitle>
-<div class="report-page-actions"><a class="secondary-link" href="/">← Patients</a><button class="secondary-button" onclick="window.print()">Print visible pages</button></div>
+<div class="report-page-actions"><a class="secondary-link" href="/">← Patients</a><PrintReport Text="Print visible pages" /></div>
 <h1>Patient report</h1>
 @if (Loading) { <div class="empty-state" role="status">Loading demographics…</div> }
 @if (PatientError is not null) { <div class="error-card" role="alert">@PatientError</div> }
@@ -14,7 +15,7 @@
 @if (LoadingResources) { <div class="empty-state" role="status">Loading patient records and counting record categories across all pages…</div> }
 else if (ResourceError is not null)
 {
-    <div class="error-card" role="alert"><strong>Patient record counts unavailable</strong><p>@ResourceError</p><p>The connected server could not supply the complete patient record. Counts are unavailable until the connection supports this request.</p><button class="secondary-button" @onclick="ReloadAsync">Retry report</button></div>
+    <div class="error-card" role="alert"><strong>Patient record counts unavailable</strong><p>@ResourceError</p><p>The connected server could not supply the complete patient record. Counts are unavailable until the connection supports this request.</p><button data-audit="PatientReport:RetryReport" class="secondary-button" @onclick="ReloadAsync">Retry report</button></div>
 }
 else if (PatientError is null)
 {
@@ -22,24 +23,24 @@ else if (PatientError is null)
         <div class="card-heading-row"><div><h2>Patient records</h2><span>@Sections.Sum(s => s.Count) records across @Sections.Count(s => s.Count > 0) categories</span></div></div>
         <p>Counts reflect records returned by the server for this patient, including linked supporting records. Expand a section to explore its fields.</p>
         <div class="report-controls">
-            <label for="resource-filter">Find a section <input id="resource-filter" @bind="Filter" @bind:event="oninput" placeholder="e.g. visits or medications" /></label>
-            <label><input type="checkbox" @bind="ShowEmpty" /> Show types with no returned records</label>
-            <button class="secondary-button" @onclick="ExpandVisible">Expand visible sections</button><button class="secondary-button" @onclick="CollapseAll">Collapse all</button>
+            <label for="resource-filter">Find a section <input data-audit="PatientReport:SectionFilter" id="resource-filter" @bind="Filter" @bind:event="oninput" placeholder="e.g. visits or medications" /></label>
+            <label><input data-audit="PatientReport:ShowEmptySections" type="checkbox" @bind="ShowEmpty" /> Show types with no returned records</label>
+            <button data-audit="PatientReport:ExpandVisibleSections" class="secondary-button" @onclick="ExpandVisible">Expand visible sections</button><button data-audit="PatientReport:CollapseAllSections" class="secondary-button" @onclick="CollapseAll">Collapse all</button>
         </div>
-        <details class="section-picker"><summary>Choose sections for this report</summary><div class="section-choices">@foreach (var section in Sections.Where(s => s.Count > 0)) { <label><input type="checkbox" checked="@(!Hidden.Contains(section.ResourceType))" @onchange="() => ToggleVisibility(section)" /> @(section.Label) (@(section.Count))</label> }</div></details>
+        <details class="section-picker"><summary data-audit="PatientReport:ChooseSections">Choose sections for this report</summary><div class="section-choices">@foreach (var section in Sections.Where(s => s.Count > 0)) { <label><input data-audit="PatientReport:SectionVisibility" type="checkbox" checked="@(!Hidden.Contains(section.ResourceType))" @onchange="() => ToggleVisibility(section)" /> @(section.Label) (@(section.Count))</label> }</div></details>
     </section>
     @if (!VisibleSections.Any()) { <div class="empty-state">No sections match your selection.</div> }
     @foreach (var section in VisibleSections)
     {
         <section class="patient-resource-section" @key="section.ResourceType">
-            <h2><button class="resource-toggle" disabled="@(section.Count == 0)" aria-expanded="@(section.Expanded ? "true" : "false")" aria-controls="@($"resources-{section.ResourceType}")" @onclick="() => Toggle(section)"><span>@(section.Label)</span><span class="resource-count">@(section.Count)</span><span aria-hidden="true">@(section.Count == 0 ? "" : section.Expanded ? "−" : "+")</span></button></h2>
-            @if (section.Expanded)
-            {
-                <div id="@($"resources-{section.ResourceType}")">
+            <h2><button data-audit="PatientReport:ToggleSection" class="resource-toggle" disabled="@(section.Count == 0)" aria-expanded="@(section.Expanded ? "true" : "false")" aria-controls="@($"resources-{section.ResourceType}")" @onclick="() => Toggle(section)"><span>@(section.Label)</span><span class="resource-count">@(section.Count)</span><span aria-hidden="true">@(section.Count == 0 ? "" : section.Expanded ? "−" : "+")</span></button></h2>
+            <div id="@($"resources-{section.ResourceType}")" hidden="@(!section.Expanded)">
+                @if (section.Expanded)
+                {
                     @((MarkupString)(section.Html ?? ""))
-                    <nav class="pagination" aria-label="@($"{section.Label} pages")"><button class="secondary-button" disabled="@(section.Page == 0)" @onclick="() => ChangePage(section, -1)">← Previous</button><span>Records @(section.Page * 10 + 1)–@Math.Min((section.Page + 1) * 10, section.Count) of @(section.Count)</span><button class="secondary-button" disabled="@((section.Page + 1) * 10 >= section.Count)" @onclick="() => ChangePage(section, 1)">Next →</button></nav>
-                </div>
-            }
+                    <nav class="pagination" aria-label="@($"{section.Label} pages")"><button data-audit="PatientReport:PreviousSectionPage" class="secondary-button" disabled="@(section.Page == 0)" @onclick="() => ChangePage(section, -1)">← Previous</button><span>Records @(section.Page * 10 + 1)–@Math.Min((section.Page + 1) * 10, section.Count) of @(section.Count)</span><button data-audit="PatientReport:NextSectionPage" class="secondary-button" disabled="@((section.Page + 1) * 10 >= section.Count)" @onclick="() => ChangePage(section, 1)">Next →</button></nav>
+                }
+            </div>
         </section>
     }
     <p class="report-footnote">Print includes expanded sections and their currently visible record pages.</p>
@@ -88,10 +89,11 @@ else if (PatientError is null)
         finally { if (!token.IsCancellationRequested) { Loading = false; LoadingResources = false; } }
     }
     private void Render(PatientResourceSection section) => section.Html = XsltService.Transform("PatientResources", section.PageXml(), SettingsService.Current, new Dictionary<string, string> { ["resourceLabel"] = section.Label });
-    private void Toggle(PatientResourceSection section) { section.Expanded = !section.Expanded; if (section.Expanded && section.Html is null) Render(section); }
-    private void ChangePage(PatientResourceSection section, int delta) { section.Page += delta; Render(section); }
-    private void ExpandVisible() { foreach (var section in VisibleSections.Where(s => s.Count > 0)) { section.Expanded = true; if (section.Html is null) Render(section); } }
-    private void CollapseAll() { foreach (var section in Sections) section.Expanded = false; }
-    private void ToggleVisibility(PatientResourceSection section) { if (!Hidden.Add(section.ResourceType)) Hidden.Remove(section.ResourceType); }
+    private Task AuditSectionAsync(string action, string details) => Activity.RecordAsync(action, "Patient/" + PatientId, "Requested", details);
+    private async Task Toggle(PatientResourceSection section) { await AuditSectionAsync("SectionToggle", section.ResourceType + "; expanded=" + !section.Expanded); section.Expanded = !section.Expanded; if (section.Expanded && section.Html is null) Render(section); }
+    private async Task ChangePage(PatientResourceSection section, int delta) { await AuditSectionAsync("SectionPage", section.ResourceType + "; page=" + (section.Page + delta + 1)); section.Page += delta; Render(section); }
+    private async Task ExpandVisible() { await AuditSectionAsync("SectionsExpand", string.Join(", ", VisibleSections.Select(s => s.ResourceType))); foreach (var section in VisibleSections.Where(s => s.Count > 0)) { section.Expanded = true; if (section.Html is null) Render(section); } }
+    private async Task CollapseAll() { await AuditSectionAsync("SectionsCollapse", "All"); foreach (var section in Sections) section.Expanded = false; }
+    private async Task ToggleVisibility(PatientResourceSection section) { await AuditSectionAsync("SectionVisibility", section.ResourceType + "; hidden=" + !Hidden.Contains(section.ResourceType)); if (!Hidden.Add(section.ResourceType)) Hidden.Remove(section.ResourceType); }
     public void Dispose() { Request?.Cancel(); Request?.Dispose(); }
 }

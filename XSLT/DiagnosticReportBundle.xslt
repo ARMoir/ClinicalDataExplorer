@@ -102,9 +102,9 @@
               <h3>Included Results</h3>
               <span><xsl:value-of select="count($results)" /> observation(s)</span>
             </div>
-            <div class="table-wrap">
+            <div class="table-wrap" tabindex="0" role="region" aria-label="Diagnostic report results">
               <table class="results-table">
-                <thead><tr><th>Test</th><th>Result</th><th>Flag</th><th>Reference Range</th><th>Observation Date</th><th>Provider</th><th>Status</th></tr></thead>
+                <thead><tr><th scope="col">Test</th><th scope="col">Result</th><th scope="col">Flag</th><th scope="col">Reference Range</th><th scope="col">Observation Date</th><th scope="col">Provider</th><th scope="col">Status</th></tr></thead>
                 <tbody><xsl:apply-templates select="$results" mode="result-row" /></tbody>
               </table>
             </div>

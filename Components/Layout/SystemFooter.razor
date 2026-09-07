@@ -7,7 +7,7 @@
 <footer class="system-footer" aria-label="System and reference information">
     <div class="system-footer-bar">
         <span>@SettingsService.Current.FacilityName · @SettingsService.Current.ProductName</span>
-        <button class="secondary-button" aria-expanded="@(Expanded ? "true" : "false")" aria-controls="system-information" @onclick="ToggleFooterAsync">System &amp; reference information <span aria-hidden="true">@(Expanded ? "−" : "+")</span></button>
+        <button data-audit="SystemFooter:ToggleFooter" class="secondary-button" aria-expanded="@(Expanded ? "true" : "false")" aria-controls="system-information" @onclick="ToggleFooterAsync">System &amp; reference information <span aria-hidden="true">@(Expanded ? "−" : "+")</span></button>
     </div>
     @if (Expanded)
     {
@@ -15,15 +15,15 @@
             <h2>System &amp; reference information</h2>
             <p>Explore the connected server, terminology services, and shared reference records.</p>
             <nav class="system-footer-tabs" aria-label="System information views">
-                <button class="secondary-button" aria-pressed="@(Active == "server" ? "true" : "false")" disabled="@Busy" @onclick='() => SelectPaneAsync("server")'>Server information</button>
-                <button class="secondary-button" aria-pressed="@(Active == "terminology" ? "true" : "false")" disabled="@Busy" @onclick='() => SelectPaneAsync("terminology")'>Terminology services</button>
-                <button class="secondary-button" aria-pressed="@(Active == "reference" ? "true" : "false")" disabled="@Busy" @onclick='() => SelectPaneAsync("reference")'>Reference library</button>
-                <button class="secondary-button" disabled="@Busy" @onclick="RefreshAsync">Refresh this view</button>
+                <button data-audit="SystemFooter:ServerInformation" class="secondary-button" aria-pressed="@(Active == "server" ? "true" : "false")" disabled="@Busy" @onclick='() => SelectPaneAsync("server")'>Server information</button>
+                <button data-audit="SystemFooter:Terminology" class="secondary-button" aria-pressed="@(Active == "terminology" ? "true" : "false")" disabled="@Busy" @onclick='() => SelectPaneAsync("terminology")'>Terminology services</button>
+                <button data-audit="SystemFooter:ReferenceLibrary" class="secondary-button" aria-pressed="@(Active == "reference" ? "true" : "false")" disabled="@Busy" @onclick='() => SelectPaneAsync("reference")'>Reference library</button>
+                <button data-audit="SystemFooter:RefreshView" class="secondary-button" disabled="@Busy" @onclick="RefreshAsync">Refresh this view</button>
             </nav>
             @if (Active == "reference")
             {
                 <label for="reference-category">Record category</label>
-                <select id="reference-category" @bind="SelectedType" @bind:after="ChangeCategoryAsync" disabled="@(Busy || ReferenceTypes.Count == 0)">
+                <select data-audit="SystemFooter:ReferenceCategory" id="reference-category" @bind="SelectedType" @bind:after="ChangeCategoryAsync" disabled="@(Busy || ReferenceTypes.Count == 0)">
                     <option value="">Choose a category</option>
                     @foreach (var type in ReferenceTypes) { <option value="@type">@ResourcePresentation.Label(type)</option> }
                 </select>
@@ -45,9 +45,9 @@
                 @if (Current.Pages.Count > 1 || result.Next is not null)
                 {
                     <nav class="pagination" aria-label="Reference record pages">
-                        <button class="secondary-button" disabled="@(Current.Page == 0)" @onclick="PreviousPage">← Previous</button>
+                        <button data-audit="SystemFooter:PreviousPage" class="secondary-button" disabled="@(Current.Page == 0)" @onclick="PreviousPage">← Previous</button>
                         <span>Page @(Current.Page + 1) · @result.Count records on this page</span>
-                        <button class="secondary-button" disabled="@(Current.Page + 1 >= Current.Pages.Count && result.Next is null)" @onclick="NextPageAsync">Next →</button>
+                        <button data-audit="SystemFooter:NextPage" class="secondary-button" disabled="@(Current.Page + 1 >= Current.Pages.Count && result.Next is null)" @onclick="NextPageAsync">Next →</button>
                     </nav>
                 }
             }

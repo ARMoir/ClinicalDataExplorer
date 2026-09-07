@@ -154,3 +154,6 @@ Report controls support finding sections, choosing visible sections, expanding/c
 `PatientDetails.xslt` renders demographics and the configured facility logo/colors. `PatientResources.xslt` supplies resource summaries and a recursive field renderer that preserves choice values, extensions, references, contained resources and nested fields. Server-provided narratives are rendered as text rather than executable HTML; reference/attachment URLs are displayed as text. Customize these templates to change presentation without recompiling.
 
 Directory pagination follows server continuation links on demand and retains earlier pages for Previous. Recent-patient discovery deduplicates patients across encounter pages, retaining the original newest-encounter order. Identifier and name searches escape literal FHIR delimiters, follow next links, and reset to page 1 for a new search.
+## Audit activity
+
+The Audit page records application activity in SQLite and is available to administrators. All users are administrators by default for initial setup; Settings lets you restrict this to named Windows accounts. See [audit setup, coverage, and deployment requirements](docs/audit.md).

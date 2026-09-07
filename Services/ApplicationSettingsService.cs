@@ -39,6 +39,8 @@ public sealed class ApplicationSettingsService
             FhirBaseUrl = NormalizeFhirBaseUrl(settings.FhirBaseUrl),
             AuthenticationMode = NormalizeAuthenticationMode(settings.AuthenticationMode),
             WindowsDomain = NormalizeWindowsDomain(settings.WindowsDomain),
+            AllUsersAreAdministrators = settings.AllUsersAreAdministrators,
+            AdministratorUsers = settings.AdministratorUsers?.Trim() ?? "",
             LogoPath = settings.LogoPath,
             PrimaryColor = NormalizeColor(settings.PrimaryColor, "#1F618D"),
             SecondaryColor = NormalizeColor(settings.SecondaryColor, "#17202A")

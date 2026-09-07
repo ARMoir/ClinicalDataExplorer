@@ -5,7 +5,7 @@
   <xsl:template match="/">
     <section class="xslt-report xslt-patient-list">
       <div class="xslt-report-heading"><div><span class="eyebrow">Patient report</span><h2>Patients</h2></div><span><xsl:value-of select="count(f:Bundle/f:entry/f:resource/f:Patient)"/> records</span></div>
-      <div class="table-wrap"><table class="xslt-table"><thead><tr><th>Name</th><th>Identifier</th><th>Date of birth</th><th>Gender</th><th>Updated</th></tr></thead><tbody>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Patient directory"><table class="xslt-table"><thead><tr><th scope="col">Name</th><th scope="col">Identifier</th><th scope="col">Date of birth</th><th scope="col">Gender</th><th scope="col">Updated</th></tr></thead><tbody>
         <xsl:for-each select="f:Bundle/f:entry/f:resource/f:Patient">
           <tr><td><a><xsl:attribute name="href">/patient/<xsl:value-of select="f:id/@value"/></xsl:attribute><strong><xsl:call-template name="name"/></strong></a></td>
           <td><xsl:for-each select="f:identifier"><xsl:if test="position() &gt; 1"> · </xsl:if><xsl:value-of select="f:value/@value"/></xsl:for-each></td>

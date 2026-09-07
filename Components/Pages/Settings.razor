@@ -2,6 +2,7 @@
 @page "/settings"
 @inject ApplicationSettingsService SettingsService
 @inject NavigationManager Navigation
+@inject UserActivityService Activity
 
 <PageTitle>@($"{Form.ProductName} - Settings")</PageTitle>
 
@@ -12,16 +13,26 @@
 
 @if (!string.IsNullOrWhiteSpace(SuccessMessage))
 {
-    <div class="success-card">@SuccessMessage</div>
+    <div class="success-card" role="status">@SuccessMessage</div>
 }
 
 @if (!string.IsNullOrWhiteSpace(ErrorMessage))
 {
-    <div class="error-card"><strong>Settings error</strong><div>@ErrorMessage</div></div>
+    <div class="error-card" role="alert"><strong>Settings error</strong><div>@ErrorMessage</div></div>
 }
 
+@if (Allowed)
+{
 <EditForm Model="Form" OnValidSubmit="SaveAsync" FormName="application-settings">
     <DataAnnotationsValidator />
+    <ValidationSummary role="alert" />
+
+    <section class="settings-card">
+        <div class="settings-card-heading"><h2>Administrators</h2><p>Administrators can change settings and review audit records.</p></div>
+        <label><InputCheckbox id="all-users-administrators" @bind-Value="Form.AllUsersAreAdministrators" /> All users are administrators</label>
+        <p>Enabled by default for initial setup, including anonymous users when authentication is disabled.</p>
+        <div class="settings-field"><label for="administrator-users">Administrator Windows accounts</label><InputTextArea id="administrator-users" @bind-Value="Form.AdministratorUsers" rows="4" placeholder="DOMAIN\username (one account per line)" /><small>When the option above is off, only these authenticated accounts are administrators. Include your own account to retain access.</small></div>
+    </section>
 
     <section class="settings-card">
         <div class="settings-card-heading">
@@ -82,7 +93,7 @@
             </div>
 
             <div class="settings-field settings-field-wide">
-                <label>Logo</label>
+                <label for="facility-logo-file">Logo</label>
                 <div class="logo-setting-row">
                     <div class="logo-preview" style="@PreviewThemeStyle">
                         @if (!string.IsNullOrWhiteSpace(Form.LogoPath))
@@ -96,11 +107,11 @@
                     </div>
 
                     <div class="logo-actions">
-                        <InputFile OnChange="UploadLogoAsync" accept="image/png,image/jpeg,image/webp" />
+                        <InputFile id="facility-logo-file" OnChange="UploadLogoAsync" accept="image/png,image/jpeg,image/webp" />
                         <small>PNG, JPG, or WebP. Maximum 5 MB.</small>
                         @if (!string.IsNullOrWhiteSpace(Form.LogoPath))
                         {
-                            <button type="button" class="secondary-button" @onclick="RemoveLogo">Remove logo</button>
+                            <button data-audit="Settings:RemoveLogo" type="button" class="secondary-button" @onclick="RemoveLogo">Remove logo</button>
                         }
                     </div>
                 </div>
@@ -134,7 +145,7 @@
             <div class="settings-field">
                 <label for="primaryColor">Primary color</label>
                 <div class="color-input-row">
-                    <input id="primaryColorPicker" type="color" @bind="Form.PrimaryColor" />
+                    <input data-audit="Settings:PrimaryColor" id="primaryColorPicker" aria-label="Choose primary color" type="color" @bind="Form.PrimaryColor" />
                     <InputText id="primaryColor" @bind-Value="Form.PrimaryColor" />
                 </div>
                 <ValidationMessage For="@(() => Form.PrimaryColor)" />
@@ -143,7 +154,7 @@
             <div class="settings-field">
                 <label for="secondaryColor">Secondary color</label>
                 <div class="color-input-row">
-                    <input id="secondaryColorPicker" type="color" @bind="Form.SecondaryColor" />
+                    <input data-audit="Settings:SecondaryColor" id="secondaryColorPicker" aria-label="Choose secondary color" type="color" @bind="Form.SecondaryColor" />
                     <InputText id="secondaryColor" @bind-Value="Form.SecondaryColor" />
                 </div>
                 <ValidationMessage For="@(() => Form.SecondaryColor)" />
@@ -163,30 +174,34 @@
             </div>
             <div class="theme-preview-body">
                 <span class="theme-preview-pill">FINAL</span>
-                <button type="button">Example action</button>
+                <button data-audit="Settings:PreviewAction" type="button">Example action</button>
             </div>
         </div>
     </section>
 
     <div class="settings-actions">
-        <button type="submit" class="primary-button" disabled="@Saving">@(Saving ? "Saving..." : "Save settings")</button>
+        <button data-audit="Settings:SaveSettings" type="submit" class="primary-button" disabled="@Saving">@(Saving ? "Saving..." : "Save settings")</button>
         <a class="secondary-link" href="/">Back to report viewer</a>
     </div>
 </EditForm>
+}
 
 @code {
     private ApplicationSettings Form { get; set; } = new();
     private bool Saving { get; set; }
+    private bool Allowed;
     private string? SuccessMessage { get; set; }
     private string? ErrorMessage { get; set; }
     private string OriginalAuthenticationMode { get; set; } = "Windows";
     private string OriginalWindowsDomain { get; set; } = "";
 
     private string PreviewThemeStyle =>
-        $"--primary-color:{Form.PrimaryColor};--secondary-color:{Form.SecondaryColor};";
+        $"--primary-color:{AccessibleTheme.Color(Form.PrimaryColor, "#1F618D")};--secondary-color:{AccessibleTheme.Color(Form.SecondaryColor, "#17202A")};";
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
+        try { await Activity.RequireAdministratorAsync(); Allowed = true; }
+        catch (UnauthorizedAccessException ex) { ErrorMessage = ex.Message; return; }
         Form = SettingsService.Current;
         OriginalAuthenticationMode = Form.AuthenticationMode;
         OriginalWindowsDomain = Form.WindowsDomain;
@@ -199,16 +214,22 @@
 
         try
         {
+            await Activity.RequireAdministratorAsync();
+            await Activity.RecordAsync("LogoUpload", "/settings", "Attempted");
             Form.LogoPath = await SettingsService.SaveLogoAsync(args.File);
+            await Activity.RecordAsync("LogoUpload", "/settings", "Succeeded");
         }
         catch (Exception ex)
         {
+            await Activity.RecordAsync("LogoUpload", "/settings", "Failed", ex.GetType().Name);
             ErrorMessage = ex.Message;
         }
     }
 
-    private void RemoveLogo()
+    private async Task RemoveLogo()
     {
+        await Activity.RequireAdministratorAsync();
+        await Activity.RecordAsync("LogoRemoval", "/settings", "Staged");
         Form.LogoPath = null;
         SuccessMessage = "Logo will be removed when you save settings.";
         ErrorMessage = null;
@@ -222,12 +243,24 @@
 
         try
         {
+            await Activity.RequireAdministratorAsync();
+            if (!Form.AllUsersAreAdministrators && Form.AdministratorUsers.Split(['\r', '\n', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Length == 0)
+                throw new InvalidOperationException("Specify at least one administrator before turning off administrator access for all users.");
+            var current = SettingsService.Current;
+            static object? AuditValue(System.Reflection.PropertyInfo property, ApplicationSettings value) =>
+                property.Name == nameof(ApplicationSettings.FhirBaseUrl) ? "Connection changed (URL values omitted)" : property.GetValue(value);
+            var changes = typeof(ApplicationSettings).GetProperties()
+                .Where(p => !Equals(p.GetValue(current), p.GetValue(Form)))
+                .ToDictionary(p => p.Name, p => new { Before = AuditValue(p, current), After = AuditValue(p, Form) });
+            await Activity.RecordAsync("SettingsChange", "/settings", "Attempted", System.Text.Json.JsonSerializer.Serialize(changes));
             var authenticationChanged =
                 !string.Equals(OriginalAuthenticationMode, Form.AuthenticationMode, StringComparison.OrdinalIgnoreCase) ||
                 !string.Equals(OriginalWindowsDomain?.Trim(), Form.WindowsDomain?.Trim(), StringComparison.OrdinalIgnoreCase);
 
             await SettingsService.SaveAsync(Form);
+            await Activity.RecordAsync("SettingsChange", "/settings", "Succeeded");
             Form = SettingsService.Current;
+            Allowed = await Activity.IsAdministratorAsync();
             OriginalAuthenticationMode = Form.AuthenticationMode;
             OriginalWindowsDomain = Form.WindowsDomain;
 
@@ -241,6 +274,7 @@
         }
         catch (Exception ex)
         {
+            await Activity.RecordAsync("SettingsChange", "/settings", "Failed", ex.GetType().Name);
             ErrorMessage = ex.Message;
         }
         finally

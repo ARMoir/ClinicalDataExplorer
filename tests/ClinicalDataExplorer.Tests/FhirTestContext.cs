@@ -13,6 +13,7 @@ internal sealed class FhirTestContext : IDisposable, IHttpClientFactory
     private readonly DirectoryInfo root = Directory.CreateTempSubdirectory("ClinicalDataExplorer-tests-");
     public HttpClient Client { get; }
     public FhirService Service { get; }
+    public ApplicationSettingsService Settings { get; }
 
     public FhirTestContext(string baseUrl, HttpMessageHandler? handler = null)
     {
@@ -25,6 +26,7 @@ internal sealed class FhirTestContext : IDisposable, IHttpClientFactory
         Client.DefaultRequestHeaders.Accept.ParseAdd("application/fhir+xml");
         Client.DefaultRequestHeaders.TryAddWithoutValidation("Prefer", "handling=strict");
         var settings = new ApplicationSettingsService(new TestEnvironment(root.FullName));
+        Settings = settings;
         // Only the disposable test directory is written; never load work settings.
         settings.SaveAsync(new ApplicationSettings { FhirBaseUrl = baseUrl }).GetAwaiter().GetResult();
         Service = new FhirService(this, settings);

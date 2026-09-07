@@ -3,35 +3,36 @@
 @implements IAsyncDisposable
 @inject FhirService FhirService
 @inject ApplicationSettingsService SettingsService
+@inject UserActivityService Activity
 
 <PageTitle>@($"{SettingsService.Current.ProductName} - Patients")</PageTitle>
 <div class="patient-directory">
     <div class="page-header patient-page-header">
         <div><span class="eyebrow">Patient directory</span><h1>Find your patient</h1><p>Search patient records or browse by most recent encounter.</p></div>
-        <button class="secondary-button" @onclick="LoadRecentAsync" disabled="@Busy">Refresh recent patients</button>
+        <button data-audit="Home:RefreshRecentPatients" class="secondary-button" @onclick="LoadRecentAsync" disabled="@Busy">Refresh recent patients</button>
     </div>
     <section class="search-card" aria-label="Patient search">
         <div class="search-mode">
             <label for="search-mode">Search by</label>
-            <select id="search-mode" @bind="SearchMode" disabled="@Busy"><option value="identifier">Patient identifier / MRN</option><option value="name">Last and first name</option></select>
+            <select data-audit="Home:SearchMode" id="search-mode" @bind="SearchMode" disabled="@Busy"><option value="identifier">Patient identifier / MRN</option><option value="name">Last and first name</option></select>
         </div>
-        <form @onsubmit="SearchAsync" @onsubmit:preventDefault>
+        <form data-audit="Home:SearchPatients" @onsubmit="SearchAsync" @onsubmit:preventDefault>
             <div class="search-row directory-search">
                 @if (SearchMode == "identifier")
                 {
-                    <div><label for="patient-identifier">Patient identifier</label><input id="patient-identifier" @bind="Identifier" @bind:event="oninput" placeholder="MRN or other identifier" autocomplete="off" disabled="@Busy" /></div>
+                    <div><label for="patient-identifier">Patient identifier</label><input data-audit="Home:PatientIdentifier" id="patient-identifier" @bind="Identifier" @bind:event="oninput" placeholder="MRN or other identifier" autocomplete="off" disabled="@Busy" /></div>
                 }
                 else
                 {
-                    <div><label for="patient-family">Last name</label><input id="patient-family" @bind="Family" @bind:event="oninput" placeholder="Last name" autocomplete="off" disabled="@Busy" /></div>
-                    <div><label for="patient-given">First name</label><input id="patient-given" @bind="Given" @bind:event="oninput" placeholder="First name" autocomplete="off" disabled="@Busy" /></div>
+                    <div><label for="patient-family">Last name</label><input data-audit="Home:PatientFamily" id="patient-family" @bind="Family" @bind:event="oninput" placeholder="Last name" autocomplete="off" disabled="@Busy" /></div>
+                    <div><label for="patient-given">First name</label><input data-audit="Home:PatientGiven" id="patient-given" @bind="Given" @bind:event="oninput" placeholder="First name" autocomplete="off" disabled="@Busy" /></div>
                 }
-                <button type="submit" disabled="@(Busy || !CanSearch)">@(Busy ? "Loading…" : "Search patients")</button>
+                <button data-audit="Home:SubmitSearch" type="submit" disabled="@(Busy || !CanSearch)">@(Busy ? "Loading…" : "Search patients")</button>
             </div>
         </form>
         @if (SearchMode == "name") { <p class="search-help">Enter either name or both to narrow your search.</p> }
     </section>
-    @if (ErrorMessage is not null) { <div class="error-card" role="alert">@ErrorMessage <button class="secondary-button" @onclick="RetryAsync" disabled="@Busy">Retry</button></div> }
+    @if (ErrorMessage is not null) { <div class="error-card" role="alert">@ErrorMessage <button data-audit="Home:RetrySearch" class="secondary-button" @onclick="RetryAsync" disabled="@Busy">Retry</button></div> }
     <section class="patient-list-card directory-results" aria-busy="@(Busy ? "true" : "false")">
         <div class="card-heading-row"><div><h2>@(IsSearch ? "Search results" : "Recent patients")</h2><span>@ListDescription</span></div><span>10 per page</span></div>
         @if (Busy) { <div class="empty-state" role="status">Loading patients…</div> }
@@ -57,9 +58,9 @@
             </div>
         }
         <nav class="pagination" aria-label="Patient pages">
-            <button class="secondary-button" @onclick="PreviousPage" disabled="@(Busy || Page == 0)">← Previous</button>
+            <button data-audit="Home:PreviousPage" class="secondary-button" @onclick="PreviousPage" disabled="@(Busy || Page == 0)">← Previous</button>
             <span aria-live="polite">Page @(Page + 1) · @CurrentPatients.Count patients</span>
-            <button class="secondary-button" @onclick="NextPageAsync" disabled="@(Busy || ErrorMessage is not null || (Page + 1 >= Pages.Count && !HasMore))">Next →</button>
+            <button data-audit="Home:NextPage" class="secondary-button" @onclick="NextPageAsync" disabled="@(Busy || ErrorMessage is not null || (Page + 1 >= Pages.Count && !HasMore))">Next →</button>
         </nav>
     </section>
 </div>
@@ -118,10 +119,11 @@
             enriched.AddRange(await Task.WhenAll(batch.Select(p => FhirService.AddPatientPractitionersAsync(p, Cancellation.Token))));
         Pages.Add(enriched);
     }
-    private void PreviousPage() { if (Page > 0) Page--; }
+    private async Task PreviousPage() { await Activity.RecordAsync("PatientPage", "/", "Requested", "Page " + Page); if (Page > 0) Page--; }
     private async Task NextPageAsync()
     {
         if (Busy) return;
+        await Activity.RecordAsync("PatientPage", "/", "Requested", "Page " + (Page + 2));
         if (Page + 1 < Pages.Count) { Page++; return; }
         Busy = true;
         try { await ReadPageAsync(); Page++; }

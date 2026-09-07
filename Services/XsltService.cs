@@ -79,8 +79,8 @@ public sealed class XsltService(IWebHostEnvironment environment)
         var arguments = new XsltArgumentList();
         arguments.AddParam("facilityName", string.Empty, settings.FacilityName ?? string.Empty);
         arguments.AddParam("logoPath", string.Empty, settings.LogoPath ?? string.Empty);
-        arguments.AddParam("primaryColor", string.Empty, settings.PrimaryColor ?? "#1F618D");
-        arguments.AddParam("secondaryColor", string.Empty, settings.SecondaryColor ?? "#17202A");
+        arguments.AddParam("primaryColor", string.Empty, AccessibleTheme.Color(settings.PrimaryColor, "#1F618D"));
+        arguments.AddParam("secondaryColor", string.Empty, AccessibleTheme.Color(settings.SecondaryColor, "#17202A"));
         if (parameters is not null)
         {
             foreach (var parameter in parameters)

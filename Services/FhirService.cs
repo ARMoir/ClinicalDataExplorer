@@ -6,7 +6,8 @@ namespace ClinicalDataExplorer.Services;
 
 public sealed partial class FhirService(
     IHttpClientFactory httpClientFactory,
-    ApplicationSettingsService settingsService)
+    ApplicationSettingsService settingsService,
+    UserActivityService? activity = null)
 {
     private static readonly XNamespace Fhir = "http://hl7.org/fhir";
 
@@ -347,6 +348,30 @@ public sealed partial class FhirService(
             : throw new ArgumentException($"A {name} is required.", name);
 
     private async Task<string> GetXmlAsync(Uri requestUri, Uri configuredBaseUri, CancellationToken cancellationToken)
+    {
+        if (activity is null) return await ReadXmlAsync(requestUri, configuredBaseUri, cancellationToken);
+        var target = requestUri.GetComponents(UriComponents.SchemeAndServer, UriFormat.UriEscaped) + UserActivityService.SafeTarget(requestUri.AbsoluteUri);
+        var operation = "Operation: " + Guid.NewGuid().ToString("N") + "; ";
+        await activity.RecordAsync("FhirRead", target, "Attempted", operation);
+        try
+        {
+            var body = await ReadXmlAsync(requestUri, configuredBaseUri, cancellationToken);
+            var document = ParseDocument(body);
+            var resources = document.Root?.Name == Fhir + "Bundle"
+                ? document.Root.Elements(Fhir + "entry").SelectMany(e => e.Elements(Fhir + "resource").Elements())
+                : document.Root is { } root ? new[] { root } : Enumerable.Empty<XElement>();
+            var ids = resources.Select(r => r.Name.LocalName + "/" + Value(r, "id")).Distinct(StringComparer.Ordinal);
+            await activity.RecordAsync("FhirRead", target, "Succeeded", operation + "Returned resources: " + string.Join(", ", ids));
+            return body;
+        }
+        catch (Exception ex)
+        {
+            await activity.RecordAsync("FhirRead", target, ex is OperationCanceledException ? "Cancelled" : "Failed", operation + ex.GetType().Name);
+            throw;
+        }
+    }
+
+    private async Task<string> ReadXmlAsync(Uri requestUri, Uri configuredBaseUri, CancellationToken cancellationToken)
     {
         if (!IsWithinConfiguredServer(requestUri, configuredBaseUri))
             throw new InvalidOperationException("The FHIR server returned a paging link outside the configured server.");

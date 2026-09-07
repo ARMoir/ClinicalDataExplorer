@@ -1,0 +1,47 @@
+@implements IAsyncDisposable
+@inject UserActivityService Activity
+@inject NavigationManager Navigation
+@inject Microsoft.JSInterop.IJSRuntime JS
+@using Microsoft.JSInterop
+
+@if (Error is not null) { <div class="error-card" role="alert">@Error</div> }
+
+@code {
+    private IJSObjectReference? Module;
+    private DotNetObjectReference<ActivityTracker>? Reference;
+    private string? Error;
+    protected override void OnInitialized() => Navigation.LocationChanged += LocationChanged;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            await Activity.RecordAsync("Session", "/", "Connected");
+            await RecordPageAsync();
+            Module = await JS.InvokeAsync<IJSObjectReference>("import", "./audit-activity.js");
+            Reference = DotNetObjectReference.Create(this);
+            await Module.InvokeVoidAsync("start", Reference);
+        }
+        catch (Exception) { Error = "Activity auditing is unavailable. Reload the page or contact an administrator."; StateHasChanged(); }
+    }
+    private Task RecordPageAsync() => Activity.RecordAsync("PageView", UserActivityService.SafeTarget(Navigation.Uri), "Observed");
+    private async void LocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs args)
+    {
+        try { await InvokeAsync(RecordPageAsync); }
+        catch (Exception) { await InvokeAsync(() => { Error = "Activity auditing is unavailable. Reload the page or contact an administrator."; StateHasChanged(); }); }
+    }
+    [JSInvokable]
+    public Task Observe(string kind, string control)
+    {
+        if (kind is not ("click" or "change" or "submit" or "toggle" or "print-dialog")) return Task.CompletedTask;
+        if (control.Length > 160) control = control[..160];
+        return Activity.RecordAsync("Interface." + kind, UserActivityService.SafeTarget(Navigation.Uri), "Client-observed", control);
+    }
+    public async ValueTask DisposeAsync()
+    {
+        Navigation.LocationChanged -= LocationChanged;
+        try { if (Module is not null) { await Module.InvokeVoidAsync("stop"); await Module.DisposeAsync(); } }
+        catch (JSDisconnectedException) { }
+        Reference?.Dispose();
+    }
+}

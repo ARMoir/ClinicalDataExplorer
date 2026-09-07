@@ -8,14 +8,15 @@
 <PageTitle>@($"{SettingsService.Current.ProductName} - Diagnostic Report")</PageTitle>
 <div class="report-page-actions"><a class="secondary-link" href="/reports">← Back to Reports</a></div>
 <h1>Diagnostic Report</h1>
-@if (Loading) { <div class="empty-state" role="status">Loading report…</div> }
+<p class="sr-only" role="status">@(Loading ? "Loading report" : ErrorMessage is null ? "Report loaded" : "Report could not be loaded")</p>
+@if (Loading) { <div class="empty-state">Loading report…</div> }
 @if (ErrorMessage is not null) { <div class="error-card" role="alert">@ErrorMessage <button class="secondary-button" @onclick="LoadAsync">Retry</button></div> }
 @if (!string.IsNullOrWhiteSpace(ReportHtml))
 {
     <div class="report-page-actions">
         @if (Context?.PatientUrl is not null) { <a class="secondary-link" href="@Context.PatientUrl">Open patient →</a> }
         @if (Context?.EncounterUrl is not null) { <a class="secondary-link" href="@Context.EncounterUrl">Open encounter →</a> }
-        <button class="secondary-button" onclick="window.print()">Print</button>
+        <PrintReport />
     </div>
     @if (Context?.PatientError is not null) { <div class="error-card" role="alert">@Context.PatientError</div> }
     @((MarkupString)PatientHtml)

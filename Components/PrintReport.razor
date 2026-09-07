@@ -1,0 +1,22 @@
+@inject UserActivityService Activity
+@inject NavigationManager Navigation
+@inject Microsoft.JSInterop.IJSRuntime JS
+@using Microsoft.JSInterop
+<button class="secondary-button" @onclick="PrintAsync" disabled="@Busy">@Text</button>
+@if (Error is not null) { <span role="alert">@Error</span> }
+@code {
+    [Parameter] public string Text { get; set; } = "Print";
+    private bool Busy;
+    private string? Error;
+    private async Task PrintAsync()
+    {
+        Busy = true; Error = null;
+        try
+        {
+            await Activity.RecordAsync("PrintRequested", UserActivityService.SafeTarget(Navigation.Uri), "Requested");
+            await JS.InvokeVoidAsync("window.print");
+        }
+        catch (Exception) { Error = "Unable to audit or open the print dialog. Please retry."; }
+        finally { Busy = false; }
+    }
+}

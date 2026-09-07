@@ -4,6 +4,7 @@
 @inject ApplicationSettingsService SettingsService
 
 <div class="shell" style="@ThemeStyle">
+    <a class="skip-link" href="#main-content">Skip to main content</a>
     <header class="topbar">
         <div class="topbar-inner">
             <div class="topbar-left">
@@ -26,6 +27,10 @@
                     <a href="/">Patients</a>
                     <a href="/reports">Reports</a>
                 </nav>
+                <nav class="topnav admin-nav" aria-label="Administration">
+                    <a href="/settings">Settings</a>
+                    <a href="/audit">Audit</a>
+                </nav>
                 <AuthorizeView>
                     <Authorized Context="authState">
                         <div class="user-identity" title="Authenticated Windows identity">
@@ -45,12 +50,12 @@
                         }
                     </NotAuthorized>
                 </AuthorizeView>
-                <a class="settings-link" href="/settings">Settings</a>
             </div>
         </div>
     </header>
 
-    <main>
+    <main id="main-content" tabindex="-1">
+        <ActivityTracker />
         @Body
     </main>
     <SystemFooter @key="Settings.FhirBaseUrl" />
@@ -60,7 +65,7 @@
     private ApplicationSettings Settings { get; set; } = new();
 
     private string ThemeStyle =>
-        $"--primary-color:{Settings.PrimaryColor};--secondary-color:{Settings.SecondaryColor};";
+        $"--primary-color:{AccessibleTheme.Color(Settings.PrimaryColor, "#1F618D")};--secondary-color:{AccessibleTheme.Color(Settings.SecondaryColor, "#17202A")};";
 
     protected override void OnInitialized()
     {

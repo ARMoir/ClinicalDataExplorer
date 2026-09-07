@@ -31,6 +31,9 @@ public sealed class ApplicationSettings
     [StringLength(120)]
     public string WindowsDomain { get; set; } = "";
 
+    public bool AllUsersAreAdministrators { get; set; } = true;
+    public string AdministratorUsers { get; set; } = "";
+
     public string? LogoPath { get; set; }
 
     [Required]
@@ -48,6 +51,8 @@ public sealed class ApplicationSettings
         FhirBaseUrl = FhirBaseUrl,
         AuthenticationMode = AuthenticationMode,
         WindowsDomain = WindowsDomain,
+        AllUsersAreAdministrators = AllUsersAreAdministrators,
+        AdministratorUsers = AdministratorUsers,
         LogoPath = LogoPath,
         PrimaryColor = PrimaryColor,
         SecondaryColor = SecondaryColor

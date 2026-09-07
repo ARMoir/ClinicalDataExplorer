@@ -11,7 +11,7 @@
       <xsl:variable name="records" select="f:Bundle/f:entry/f:resource/*"/>
       <xsl:choose>
       <xsl:when test="$records and not($records[not(self::f:Observation)]) and not($records/descendant::*/@value[contains(., '&#10;') or contains(., '\n')])">
-        <div class="table-wrap"><table class="results-table patient-lab-results">
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Patient laboratory results"><table class="results-table patient-lab-results">
           <thead><tr><th scope="col">Test</th><th scope="col">Result</th><th scope="col">Flag</th><th scope="col">Reference range</th><th scope="col">Date</th><th scope="col">Provider</th><th scope="col">Status</th></tr></thead>
           <xsl:for-each select="$records"><tbody class="lab-record">
             <xsl:if test="@p:anchor"><xsl:attribute name="id"><xsl:value-of select="@p:anchor"/></xsl:attribute></xsl:if>

@@ -1,0 +1,44 @@
+@page "/audit"
+@inject UserActivityService Activity
+<PageTitle>Audit</PageTitle>
+<div class="page-header"><h1>Audit</h1><p>Review user activity and record access. Times are shown in UTC.</p></div>
+@if (Error is not null) { <div class="error-card" role="alert">@Error</div> }
+@if (Allowed)
+{
+    <form class="search-card audit-filters" @onsubmit="RefreshAsync" @onsubmit:preventDefault>
+        <div><label for="audit-user">User</label><input id="audit-user" @bind="User" /></div>
+        <div><label for="audit-action">Action</label><input id="audit-action" @bind="Action" placeholder="e.g. FhirRead" /></div>
+        <button disabled="@Busy">Filter / Refresh</button>
+    </form>
+    <div class="audit-table-wrap" tabindex="0" role="region" aria-label="Audit events">
+        <table class="audit-table"><caption class="sr-only">User activity audit events, newest first</caption>
+            <thead><tr><th scope="col">Event / UTC</th><th scope="col">User</th><th scope="col">Action</th><th scope="col">Target</th><th scope="col">Outcome</th><th scope="col">Details</th></tr></thead>
+            <tbody>@foreach (var entry in Entries)
+            {
+                <tr><td>#@entry.Id<br />@DateTimeOffset.Parse(entry.Utc).ToString("yyyy-MM-dd HH:mm:ss.fff")</td><td>@entry.User<details><summary>Session</summary>@entry.Session</details></td><td>@entry.Action</td><td>@entry.Target</td><td>@entry.Outcome</td><td><details><summary>View details</summary>@entry.Details</details></td></tr>
+            }</tbody>
+        </table>
+    </div>
+    @if (Entries.Count == 0) { <p role="status">No matching audit events.</p> }
+    <nav class="pagination" aria-label="Audit pages"><button class="secondary-button" disabled="@(Busy || Cursors.Count == 0)" @onclick="NewerAsync">← Newer</button><span role="status">@Entries.Count events shown · 50 per page</span><button class="secondary-button" disabled="@(Busy || Entries.Count < 50)" @onclick="OlderAsync">Older →</button></nav>
+}
+@code {
+    private string User = "", Action = "";
+    private string? Error;
+    private bool Allowed, Busy;
+    private long Before = long.MaxValue;
+    private readonly Stack<long> Cursors = new();
+    private IReadOnlyList<AuditEntry> Entries = [];
+    protected override async Task OnInitializedAsync() { Allowed = await Activity.IsAdministratorAsync(); await LoadAsync(); }
+    private Task RefreshAsync() { Before = long.MaxValue; Cursors.Clear(); return LoadAsync(); }
+    private Task OlderAsync() { Cursors.Push(Before); Before = Entries[^1].Id; return LoadAsync(); }
+    private Task NewerAsync() { Before = Cursors.Pop(); return LoadAsync(); }
+    private async Task LoadAsync()
+    {
+        Busy = true; Error = null; Entries = [];
+        try { Entries = await Activity.ReadAsync(User, Action, Before); }
+        catch (UnauthorizedAccessException ex) { Allowed = false; Error = ex.Message; }
+        catch (Exception) { Error = "The audit database could not be read. Contact an administrator."; }
+        finally { Busy = false; }
+    }
+}
