@@ -152,10 +152,8 @@ public sealed partial class FhirService(
             "/$everything?_count=100&_format=xml", cancellationToken);
         var document = ParseDocument(xml);
         await ResolvePractitionerReferencesAsync(document, cancellationToken);
-        return document.Root!.Elements(Fhir + "entry").Select(e => e.Element(Fhir + "resource")?.Elements().FirstOrDefault())
-            .Where(r => r is not null && r.Name != Fhir + "OperationOutcome")
-            .Select(r => r!).GroupBy(r => r.Name == Fhir + "Observation" &&
-                r.Descendants().Attributes("value").Any(v => v.Value.Contains('\n') || v.Value.Contains(@"\n"))
+        return DiagnosticReportConsolidation.Consolidate(document, GetBaseUri())
+            .GroupBy(r => DiagnosticReportConsolidation.IsMovedObservation(r)
                     ? "DiagnosticReport" : r.Name.LocalName).OrderBy(g => g.Key, StringComparer.Ordinal)
             .Select(g => new PatientResourceSection(g.Key, g.Select(r => new XElement(r)).ToList())).ToList();
     }

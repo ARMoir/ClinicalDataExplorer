@@ -1,0 +1,25 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Local accessibility verification</title>
+<h1>Local accessibility verification</h1><button id="run">Run scans</button><pre id="results" role="status">Ready</pre><iframe id="app" title="Application under test" style="width:1100px;height:900px"></iframe>
+<script>
+document.querySelector('#run').onclick = async () => {
+ const output=document.querySelector('#results'), frame=document.querySelector('#app');
+ const results=[]; document.querySelector('#run').disabled=true;
+ try {
+ for (const path of ['/', '/patient/p1','/reports','/reports/view?reportId=r1','/encounter/e1','/record?reference=Observation/o1','/settings','/audit']) {
+  output.textContent='Scanning '+path;
+  await new Promise(resolve=>{frame.onload=resolve;frame.src=path;});
+  await new Promise(resolve=>setTimeout(resolve,2500));
+  const doc=frame.contentDocument;
+  // Exercise collapsed report content as well as the initial screen.
+  for(const button of doc.querySelectorAll('.resource-toggle[aria-expanded="false"]:not(:disabled)')) button.click();
+  for(const details of doc.querySelectorAll('details')) details.open=true;
+  await new Promise(resolve=>setTimeout(resolve,500));
+  const script=doc.createElement('script');script.src='/axe.min.js';
+  await new Promise((resolve,reject)=>{script.onload=resolve;script.onerror=reject;doc.head.append(script);});
+  const scan=await frame.contentWindow.axe.run(doc,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa','wcag22aa','best-practice']}});
+  results.push({path,violations:scan.violations.map(v=>({id:v.id,impact:v.impact,nodes:v.nodes.map(n=>({html:n.html,reason:n.failureSummary}))})),incomplete:scan.incomplete.map(v=>({id:v.id,count:v.nodes.length}))});
+ }
+ output.textContent=JSON.stringify(results,null,2);
+ } catch(error) {output.textContent=String(error);} finally {document.querySelector('#run').disabled=false;}
+};
+</script></html>

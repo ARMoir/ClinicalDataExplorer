@@ -484,7 +484,7 @@ select, .report-controls input:not([type=checkbox]) { font: inherit; border: 1px
 .pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-top: 1px solid #dfe4e8; }
 .pagination span { font-size: 13px; color: #566573; }
 button:disabled { opacity: .55; cursor: default; }
-.patient-report-brand { display: flex; align-items: center; gap: 18px; margin-bottom: 22px; }
+.patient-report-brand { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; padding: 20px 22px; }
 .patient-report-brand img { max-width: 220px; max-height: 60px; object-fit: contain; }
 .report-customization { margin: 24px 0; }
 .report-customization .card-heading-row { padding: 0 0 16px; }
@@ -662,3 +662,5 @@ input, select, textarea { max-width: 100%; }
     button, input, select, textarea { border: 1px solid ButtonText; }
 }
 @media print { .skip-link { display: none; } }
+.consolidated-observation { border-top: 1px solid #bdc3c7; margin-top: 20px; padding-top: 16px; }
+.consolidated-observation h4 { margin: 0 0 8px; }
