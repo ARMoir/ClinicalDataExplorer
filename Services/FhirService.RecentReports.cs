@@ -12,7 +12,7 @@ public sealed partial class FhirService
         {
             await foreach (var patient in StreamRecentPatientsAsync(cancellationToken))
             {
-                var enriched = await AddPatientPractitionersAsync(patient, cancellationToken);
+                var enriched = await AddRecentPatientPractitionersAsync(patient, cancellationToken);
                 yield return new(patient.Id, patient.DisplayName, string.Join(" · ", patient.Identifiers), patient.MostRecentEncounter,
                     "/patient/" + Uri.EscapeDataString(patient.Id), enriched.Practitioners, enriched.PractitionerStatus, enriched.PractitionerLookupError);
             }

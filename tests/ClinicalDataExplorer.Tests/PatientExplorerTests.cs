@@ -29,6 +29,65 @@ public sealed class PatientExplorerTests
     }
 
     [Theory]
+    [InlineData(HttpStatusCode.NotFound)]
+    [InlineData(HttpStatusCode.Gone)]
+    public async Task Recent_patients_skip_missing_records_on_second_page(HttpStatusCode status)
+    {
+        static string Enc(string id) => Entry($"<Encounter><subject><reference value='Patient/{id}'/></subject></Encounter>");
+        var first = string.Concat(Enumerable.Range(1, 10).Select(i => Enc($"p{i}") + Entry(Patient(i))));
+        using var handler = new ScriptedHandler(
+            _ => ScriptedHandler.Xml(Bundle(first, "Encounter?cursor=2")),
+            request =>
+            {
+                Assert.Equal("/r4/Encounter", request.RequestUri!.AbsolutePath);
+                Assert.Equal("?cursor=2", request.RequestUri.Query);
+                return ScriptedHandler.Xml(Bundle(Enc("missing") + Enc("p11") + Entry(Patient(11)), "Encounter?cursor=3"));
+            },
+            request =>
+            {
+                Assert.Equal("/r4/Patient/missing", request.RequestUri!.AbsolutePath);
+                return ScriptedHandler.Xml("<OperationOutcome xmlns='http://hl7.org/fhir'/>", status);
+            },
+            _ => ScriptedHandler.Xml(Bundle(Enc("missing") + Enc("p12") + Entry(Patient(12)))));
+        using var context = new FhirTestContext(BaseUrl, handler);
+        var ids = new List<string>();
+        await foreach (var patient in context.Service.StreamRecentPatientsAsync()) ids.Add(patient.Id);
+        Assert.Equal(Enumerable.Range(1, 12).Select(i => $"p{i}"), ids);
+        Assert.Equal(4, handler.Calls);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    public async Task Recent_patients_do_not_hide_other_patient_lookup_errors(HttpStatusCode status)
+    {
+        using var handler = new ScriptedHandler(
+            _ => ScriptedHandler.Xml(Bundle(Entry("<Encounter><subject><reference value='Patient/p1'/></subject></Encounter>"))),
+            _ => ScriptedHandler.Xml("<OperationOutcome xmlns='http://hl7.org/fhir'/>", status));
+        using var context = new FhirTestContext(BaseUrl, handler);
+        var error = await Assert.ThrowsAsync<HttpRequestException>(async () =>
+        {
+            await foreach (var patient in context.Service.StreamRecentPatientsAsync()) { }
+        });
+        Assert.Equal(status, error.StatusCode);
+    }
+
+    [Fact]
+    public async Task Recent_patients_do_not_hide_a_missing_next_page()
+    {
+        using var handler = new ScriptedHandler(
+            _ => ScriptedHandler.Xml(Bundle(Entry(Patient(1)), "Encounter?cursor=2")),
+            _ => ScriptedHandler.Xml("<OperationOutcome xmlns='http://hl7.org/fhir'/>", HttpStatusCode.NotFound));
+        using var context = new FhirTestContext(BaseUrl, handler);
+        var error = await Assert.ThrowsAsync<HttpRequestException>(async () =>
+        {
+            await foreach (var patient in context.Service.StreamRecentPatientsAsync()) { }
+        });
+        Assert.Equal(HttpStatusCode.NotFound, error.StatusCode);
+    }
+
+    [Theory]
     [InlineData(null, "O'Neil, Jr", "Alex", "family=O'Neil\\, Jr&given=Alex")]
     [InlineData("MRN|123", null, null, "identifier=MRN\\|123")]
     [InlineData(null, null, "Alex", "given=Alex")]

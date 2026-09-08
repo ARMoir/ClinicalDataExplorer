@@ -63,6 +63,7 @@
             <button data-audit="Home:NextPage" class="secondary-button" @onclick="NextPageAsync" disabled="@(Busy || ErrorMessage is not null || (Page + 1 >= Pages.Count && !HasMore))">Next →</button>
         </nav>
     </section>
+    @if (!IsSearch) { <p class="search-help">Recent patients have a loading limit per patient. Slow records may be skipped or have incomplete provider details. Search for a patient specifically to wait for their record.</p> }
 </div>
 
 @code {
@@ -116,7 +117,9 @@
         // not the lookahead patient or the rest of the search result set.
         var enriched = new List<PatientSummary>();
         foreach (var batch in patients.Chunk(3))
-            enriched.AddRange(await Task.WhenAll(batch.Select(p => FhirService.AddPatientPractitionersAsync(p, Cancellation.Token))));
+            enriched.AddRange(await Task.WhenAll(batch.Select(p => IsSearch
+                ? FhirService.AddPatientPractitionersAsync(p, Cancellation.Token)
+                : FhirService.AddRecentPatientPractitionersAsync(p, Cancellation.Token))));
         Pages.Add(enriched);
     }
     private async Task PreviousPage() { await Activity.RecordAsync("PatientPage", "/", "Requested", "Page " + Page); if (Page > 0) Page--; }
