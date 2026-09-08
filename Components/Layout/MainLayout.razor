@@ -2,9 +2,11 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @inject ApplicationSettingsService SettingsService
+@inject NavigationManager Navigation
 
 <div class="shell" style="@ThemeStyle">
-    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <a class="skip-link" href="@(Navigation.Uri.Split('#')[0] + "#main-content")"
+       @onclick="SkipToMainContent" @onclick:preventDefault>Skip to main content</a>
     <header class="topbar">
         <div class="topbar-inner">
             <div class="topbar-left">
@@ -54,7 +56,7 @@
         </div>
     </header>
 
-    <main id="main-content" tabindex="-1">
+    <main id="main-content" tabindex="-1" @ref="MainContent">
         <ActivityTracker />
         @Body
     </main>
@@ -62,6 +64,8 @@
 </div>
 
 @code {
+    private ElementReference MainContent;
+    private async Task SkipToMainContent() => await MainContent.FocusAsync();
     private ApplicationSettings Settings { get; set; } = new();
 
     private string ThemeStyle =>

@@ -53,7 +53,7 @@ a { color: inherit; }
 
 main { max-width: 1180px; margin: 0 auto; padding: 28px 24px 60px; }
 /* Preserve a visible focus cue on navigation headings without the old box. */
-main h1[tabindex="-1"]:focus { outline: none; text-decoration: underline; text-decoration-thickness: 3px; text-underline-offset: .2em; }
+main h1[tabindex="-1"]:focus { outline: none; box-shadow: none; text-decoration: underline; text-decoration-thickness: 3px; text-underline-offset: .2em; }
 .page-header h1 { margin: 0 0 8px; }
 .page-header p { margin: 0 0 22px; color: #5d6d7e; }
 
@@ -313,7 +313,9 @@ main h1[tabindex="-1"]:focus { outline: none; text-decoration: underline; text-d
     background: white;
     cursor: pointer;
 }
-.color-input-row input[type="text"] { flex: 1; }
+.color-input-row input { min-width: 0; }
+.color-input-row input:not([type="color"]) { flex: 1; width: 100%; padding: 10px 12px; border: 1px solid #bdc3c7; border-radius: 7px; }
+.settings-field, .logo-actions { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 .theme-preview { margin-top: 22px; overflow: hidden; border: 1px solid #dfe4e8; border-radius: 9px; }
 .theme-preview-header { min-height: 64px; padding: 12px 18px; background: var(--secondary-color, #17202a); color: white; display: flex; align-items: center; gap: 12px; }
 .theme-preview-header img { max-width: 150px; max-height: 40px; object-fit: contain; }
@@ -651,7 +653,8 @@ input, select, textarea { max-width: 100%; }
     .patient-page-header, .card-heading-row, .logo-setting-row, .report-title-row, .xslt-report-heading { flex-direction: column; }
     .search-row { flex-wrap: wrap; }
     .search-row > input { flex-basis: 100%; }
-    .directory-demographics, .report-grid, .xslt-detail-grid, .settings-grid { grid-template-columns: minmax(0, 1fr); }
+    .directory-demographics, .report-grid, .xslt-detail-grid, .settings-grid, .color-settings-grid { grid-template-columns: minmax(0, 1fr); }
+    .settings-actions, .theme-preview-body { flex-wrap: wrap; }
     .logo-preview { min-width: 0; max-width: 100%; }
     .admin-nav { padding-left: 0; border-left: 0; }
     .clinical-document { padding: 18px 12px; }

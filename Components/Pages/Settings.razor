@@ -43,8 +43,8 @@
         <div class="settings-grid">
             <div class="settings-field settings-field-wide">
                 <label for="productName">Product name</label>
-                <InputText id="productName" @bind-Value="Form.ProductName" placeholder="Clinical Data Explorer" />
-                <ValidationMessage For="@(() => Form.ProductName)" />
+                <InputText id="productName" aria-describedby="productName-error" @bind-Value="Form.ProductName" placeholder="Clinical Data Explorer" />
+                <div id="productName-error"><ValidationMessage For="@(() => Form.ProductName)" /></div>
             </div>
         </div>
     </section>
@@ -58,17 +58,17 @@
         <div class="settings-grid">
             <div class="settings-field">
                 <label for="authenticationMode">Authentication mode</label>
-                <InputSelect id="authenticationMode" @bind-Value="Form.AuthenticationMode">
+                <InputSelect id="authenticationMode" aria-describedby="authenticationMode-error" @bind-Value="Form.AuthenticationMode">
                     <option value="Windows">Windows / Active Directory</option>
                     <option value="Disabled">Disabled (development only)</option>
                 </InputSelect>
-                <ValidationMessage For="@(() => Form.AuthenticationMode)" />
+                <div id="authenticationMode-error"><ValidationMessage For="@(() => Form.AuthenticationMode)" /></div>
             </div>
 
             <div class="settings-field">
                 <label for="windowsDomain">Windows domain (optional)</label>
-                <InputText id="windowsDomain" @bind-Value="Form.WindowsDomain" placeholder="e.g. EMERSON" />
-                <ValidationMessage For="@(() => Form.WindowsDomain)" />
+                <InputText id="windowsDomain" aria-describedby="windowsDomain-error" @bind-Value="Form.WindowsDomain" placeholder="e.g. EMERSON" />
+                <div id="windowsDomain-error"><ValidationMessage For="@(() => Form.WindowsDomain)" /></div>
                 <small>Leave blank initially. If set, only identities from this domain are allowed. No domain-controller address or service account is required.</small>
             </div>
         </div>
@@ -88,8 +88,8 @@
         <div class="settings-grid">
             <div class="settings-field settings-field-wide">
                 <label for="facilityName">Facility name</label>
-                <InputText id="facilityName" @bind-Value="Form.FacilityName" />
-                <ValidationMessage For="@(() => Form.FacilityName)" />
+                <InputText id="facilityName" aria-describedby="facilityName-error" @bind-Value="Form.FacilityName" />
+                <div id="facilityName-error"><ValidationMessage For="@(() => Form.FacilityName)" /></div>
             </div>
 
             <div class="settings-field settings-field-wide">
@@ -128,8 +128,8 @@
         <div class="settings-grid">
             <div class="settings-field settings-field-wide">
                 <label for="fhirBaseUrl">Server base URL</label>
-                <InputText id="fhirBaseUrl" @bind-Value="Form.FhirBaseUrl" placeholder="http://summittest:8080/" />
-                <ValidationMessage For="@(() => Form.FhirBaseUrl)" />
+                <InputText id="fhirBaseUrl" aria-describedby="fhirBaseUrl-error" @bind-Value="Form.FhirBaseUrl" placeholder="http://summittest:8080/" />
+                <div id="fhirBaseUrl-error"><ValidationMessage For="@(() => Form.FhirBaseUrl)" /></div>
                 <small>Use the server root or service base path, for example http://summittest:8080/ or https://server.example.org/fhir/.</small>
             </div>
         </div>
@@ -146,18 +146,18 @@
                 <label for="primaryColor">Primary color</label>
                 <div class="color-input-row">
                     <input data-audit="Settings:PrimaryColor" id="primaryColorPicker" aria-label="Choose primary color" type="color" @bind="Form.PrimaryColor" />
-                    <InputText id="primaryColor" @bind-Value="Form.PrimaryColor" />
+                    <InputText id="primaryColor" aria-describedby="primaryColor-error" @bind-Value="Form.PrimaryColor" />
                 </div>
-                <ValidationMessage For="@(() => Form.PrimaryColor)" />
+                <div id="primaryColor-error"><ValidationMessage For="@(() => Form.PrimaryColor)" /></div>
             </div>
 
             <div class="settings-field">
                 <label for="secondaryColor">Secondary color</label>
                 <div class="color-input-row">
                     <input data-audit="Settings:SecondaryColor" id="secondaryColorPicker" aria-label="Choose secondary color" type="color" @bind="Form.SecondaryColor" />
-                    <InputText id="secondaryColor" @bind-Value="Form.SecondaryColor" />
+                    <InputText id="secondaryColor" aria-describedby="secondaryColor-error" @bind-Value="Form.SecondaryColor" />
                 </div>
-                <ValidationMessage For="@(() => Form.SecondaryColor)" />
+                <div id="secondaryColor-error"><ValidationMessage For="@(() => Form.SecondaryColor)" /></div>
             </div>
         </div>
 

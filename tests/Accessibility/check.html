@@ -1,15 +1,23 @@
 <!doctype html><html lang="en"><meta charset="utf-8"><title>Local accessibility verification</title>
 <h1>Local accessibility verification</h1><button id="run">Run scans</button><pre id="results" role="status">Ready</pre><iframe id="app" title="Application under test" style="width:1100px;height:900px"></iframe>
 <script>
+const preview=new URLSearchParams(location.search).get('page');
+if(preview) {document.querySelector('#app').src=preview;document.querySelector('#app').style.width='320px';}
 document.querySelector('#run').onclick = async () => {
  const output=document.querySelector('#results'), frame=document.querySelector('#app');
  const results=[]; document.querySelector('#run').disabled=true;
  try {
+ for (const width of [1100,320]) {
+ frame.style.width=width+'px';
  for (const path of ['/', '/patient/p1','/reports','/reports/view?reportId=r1','/encounter/e1','/record?reference=Observation/o1','/settings','/audit']) {
   output.textContent='Scanning '+path;
   await new Promise(resolve=>{frame.onload=resolve;frame.src=path;});
   await new Promise(resolve=>setTimeout(resolve,2500));
   const doc=frame.contentDocument;
+  const deadline=Date.now()+45000;
+  while ([...doc.querySelectorAll('[role="status"], .loading-card')].some(e=>/loading|searching/i.test(e.textContent)) && Date.now()<deadline)
+   await new Promise(resolve=>setTimeout(resolve,250));
+  if ([...doc.querySelectorAll('[role="status"], .loading-card')].some(e=>/loading|searching/i.test(e.textContent))) throw new Error('Content did not finish loading: '+path);
   // Exercise collapsed report content as well as the initial screen.
   for(const button of doc.querySelectorAll('.resource-toggle[aria-expanded="false"]:not(:disabled)')) button.click();
   for(const details of doc.querySelectorAll('details')) details.open=true;
@@ -17,7 +25,8 @@ document.querySelector('#run').onclick = async () => {
   const script=doc.createElement('script');script.src='/axe.min.js';
   await new Promise((resolve,reject)=>{script.onload=resolve;script.onerror=reject;doc.head.append(script);});
   const scan=await frame.contentWindow.axe.run(doc,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa','wcag22aa','best-practice']}});
-  results.push({path,violations:scan.violations.map(v=>({id:v.id,impact:v.impact,nodes:v.nodes.map(n=>({html:n.html,reason:n.failureSummary}))})),incomplete:scan.incomplete.map(v=>({id:v.id,count:v.nodes.length}))});
+  results.push({path,width,viewport:frame.contentWindow.innerWidth,pageWidth:doc.documentElement.scrollWidth,overflow:[...doc.querySelectorAll('input,select,button,textarea')].filter(e=>e.getBoundingClientRect().right>frame.contentWindow.innerWidth).map(e=>e.outerHTML.slice(0,200)),violations:scan.violations.map(v=>({id:v.id,impact:v.impact,nodes:v.nodes.map(n=>({html:n.html,reason:n.failureSummary}))})),incomplete:scan.incomplete.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.html)}))});
+ }
  }
  output.textContent=JSON.stringify(results,null,2);
  } catch(error) {output.textContent=String(error);} finally {document.querySelector('#run').disabled=false;}
