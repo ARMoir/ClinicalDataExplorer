@@ -364,4 +364,3 @@ FodyWeavers.xsd
 # Local audit data and isolated verification builds
 /App_Data/audit.sqlite*
 /.artifacts/
-/App_Data/application-settings.json
