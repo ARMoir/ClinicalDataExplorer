@@ -10,6 +10,7 @@ public sealed record PatientSummary(
     DateTimeOffset? LastUpdated,
     DateTimeOffset? MostRecentEncounter)
 {
+    internal TimeSpan RecentLookupDuration { get; init; }
     public string Initials { get; init; } = "?";
     public string? Phone { get; init; }
     public string? Email { get; init; }

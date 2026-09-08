@@ -101,14 +101,38 @@ public sealed partial class FhirService(
                 if (string.IsNullOrWhiteSpace(patientId) || !seenPatientIds.Add(patientId))
                     continue;
 
+                cancellationToken.ThrowIfCancellationRequested();
+                var started = System.Diagnostics.Stopwatch.GetTimestamp();
                 if (!includedPatients.TryGetValue(patientId, out var patient))
-                    patient = await GetPatientByIdAsync(patientId, baseUri, cancellationToken);
+                {
+                    using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    budget.CancelAfter(RecentPatientBudget);
+                    try
+                    {
+                        patient = await GetPatientByIdAsync(patientId, baseUri, budget.Token).WaitAsync(budget.Token);
+                    }
+                    catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && budget.IsCancellationRequested)
+                    {
+                        continue;
+                    }
+                    catch (HttpRequestException ex) when (ex.StatusCode is System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.Gone)
+                    {
+                        // An encounter can outlive its patient record. Skip that reference,
+                        // rather than terminating pagination for all remaining patients.
+                        cancellationToken.ThrowIfCancellationRequested();
+                        continue;
+                    }
+                }
 
                 if (patient is null)
                     continue;
 
                 var encounter = ToEncounter(encounterElement);
-                yield return patient with { MostRecentEncounter = encounter.Start };
+                yield return patient with
+                {
+                    MostRecentEncounter = encounter.Start,
+                    RecentLookupDuration = System.Diagnostics.Stopwatch.GetElapsedTime(started)
+                };
             }
 
             nextUri = GetNextPageUri(document, baseUri);

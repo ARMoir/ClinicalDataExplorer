@@ -6,6 +6,29 @@ namespace ClinicalDataExplorer.Services;
 public sealed partial class FhirService
 {
     private static readonly XNamespace Presentation = "urn:clinical-data-explorer:presentation";
+    private static readonly TimeSpan RecentPatientBudget = TimeSpan.FromSeconds(2);
+
+    public async Task<PatientSummary> AddRecentPatientPractitionersAsync(PatientSummary patient,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var remaining = RecentPatientBudget - patient.RecentLookupDuration;
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        if (remaining > TimeSpan.Zero)
+        {
+            budget.CancelAfter(remaining);
+            try
+            {
+                return await AddPatientPractitionersAsync(patient, budget.Token).WaitAsync(budget.Token);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && budget.IsCancellationRequested) { }
+        }
+        return patient with
+        {
+            PractitionerStatus = PractitionerAssociationStatus.Unavailable,
+            PractitionerLookupError = "Provider loading exceeded the 2-second recent-patient limit. Search for this patient specifically to wait for the full record."
+        };
+    }
 
     private async Task<string> AddPractitionerPresentationAsync(string xml, CancellationToken cancellationToken)
     {
