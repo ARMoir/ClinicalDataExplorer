@@ -17,6 +17,17 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Runtime files must also be present when launching from the build folder. -->
+    <Content Update="wwwroot\**\*;appsettings*.json;App_Data\application-settings.json"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+    <None Remove="XSLT\**\*" />
+    <Content Include="XSLT\**\*"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Negotiate" Version="10.0.11" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.0" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />

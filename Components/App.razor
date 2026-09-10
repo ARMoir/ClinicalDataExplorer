@@ -10,8 +10,17 @@
     <HeadOutlet @rendermode="InteractiveServer" />
 </head>
 <body>
+    <div id="connection-startup" class="error-card" role="status" hidden>
+        Interactive controls are not connected yet. If this message remains, reload the page and check the browser console for connection errors.
+        <button type="button" onclick="window.location.reload()">Reload page</button>
+    </div>
     <Routes @rendermode="InteractiveServer" />
-    <script src="_framework/blazor.web.js"></script>
+    <div id="blazor-error-ui" class="error-card" role="alert" style="display:none">
+        The interactive session encountered an error. Reload the page to reconnect. If it happens again, contact an administrator to check the server logs.
+        <button type="button" onclick="window.location.reload()">Reload page</button>
+    </div>
+    <script src="@Assets["_framework/blazor.web.js"]" autostart="false"></script>
+    <script src="connection-startup.js"></script>
 </body>
 </html>
 

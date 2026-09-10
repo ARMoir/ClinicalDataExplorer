@@ -19,6 +19,20 @@ dotnet test ClinicalDataExplorer.sln
 
 Offline tests use synthetic records and scripted HTTP responses. Live FHIR tests are opt-in and skipped by default. See [testing and server compatibility](docs/testing.md) for HAPI and Microsoft FHIR Server test instructions. Passing offline tests does not verify a deployed server or its authentication configuration.
 
+## Build and deployment files
+
+Build and publish outputs include `wwwroot/` (including branding files), all files under `XSLT/`, `appsettings*.json`, and `App_Data/application-settings.json`, preserving their directory structure. Changed source files are copied with `PreserveNewest`.
+
+For deployment to another machine, create a publish folder and deploy its entire contents:
+
+```powershell
+dotnet publish ClinicalDataExplorer.csproj -c Release -o .artifacts/publish
+```
+
+Publishing also packages Blazor's framework scripts and static asset manifests. Ordinary build outputs can reference framework assets in the local SDK/package cache, so use the publish output for deployment. Launch from the deployed folder so the content root resolves `XSLT/` and `App_Data/` correctly.
+
+The app creates `App_Data/`, its audit database, and `wwwroot/uploads/` as needed at startup. Preserve the destination's runtime settings, uploaded logos, and audit database when updating an existing installation; copying packaged settings can replace local configuration. The application identity needs write access to these runtime data directories.
+
 ## Navigation
 
 | View | Address | Purpose |

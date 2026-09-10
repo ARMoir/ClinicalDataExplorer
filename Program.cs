@@ -100,6 +100,10 @@ app.Use(async (context, next) =>
 app.UseAuthorization();
 app.UseAntiforgery();
 
+// .NET 10 serves Blazor's framework scripts through the static asset endpoints.
+// Keep these public, like UseStaticFiles above, under the fallback access policy.
+app.MapStaticAssets().AllowAnonymous();
+
 app.MapRazorComponents<ClinicalDataExplorer.Components.App>()
     .AddInteractiveServerRenderMode();
 
