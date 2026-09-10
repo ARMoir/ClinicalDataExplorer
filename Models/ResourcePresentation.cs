@@ -27,23 +27,24 @@ public static class ResourcePresentation
         ["Binary"] = "File content", ["Provenance"] = "Record history", ["AuditEvent"] = "Access history"
     };
 
-    // Patient report reading order: care context, investigations, clinical history,
-    // care planning, documents, then administrative and supporting records.
+    // Patient report reading order: care context, observations, documents and
+    // medications, then other investigations, history and supporting records.
     private static readonly Dictionary<string, int> PatientSectionRanks = (
         "Patient Account Appointment AppointmentResponse Encounter EpisodeOfCare " +
         "PractitionerRole Practitioner CareTeam Coverage RelatedPerson " +
-        "ServiceRequest DiagnosticReport Observation ImagingStudy Specimen " +
-        "Condition AllergyIntolerance Flag MedicationStatement MedicationRequest MedicationAdministration MedicationDispense " +
+        "Observation DocumentReference MedicationStatement MedicationRequest MedicationAdministration MedicationDispense Medication " +
+        "ServiceRequest DiagnosticReport ImagingStudy Specimen " +
+        "Condition AllergyIntolerance Flag " +
         "Procedure Immunization ImmunizationEvaluation ImmunizationRecommendation " +
         "ClinicalImpression FamilyMemberHistory RiskAssessment DetectedIssue AdverseEvent " +
         "CarePlan Goal NutritionOrder DeviceRequest DeviceUseStatement " +
         "Communication CommunicationRequest Task RequestGroup QuestionnaireResponse " +
-        "Composition DocumentReference DocumentManifest Media Consent " +
+        "Composition DocumentManifest Media Consent " +
         "CoverageEligibilityRequest CoverageEligibilityResponse EnrollmentRequest Claim ClaimResponse " +
         "ExplanationOfBenefit ChargeItem Invoice SupplyRequest SupplyDelivery " +
         "ResearchSubject MeasureReport MolecularSequence BodyStructure VisionPrescription " +
         "Person Group List Basic Schedule Slot Organization OrganizationAffiliation Location HealthcareService " +
-        "Device Medication Substance Questionnaire ResearchStudy Endpoint Binary Provenance AuditEvent")
+        "Device Substance Questionnaire ResearchStudy Endpoint Binary Provenance AuditEvent")
         .Split(' ').Select((type, rank) => (type, rank))
         .ToDictionary(item => item.type, item => item.rank, StringComparer.Ordinal);
 
