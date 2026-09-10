@@ -98,7 +98,17 @@
     private int Page;
     private sealed record Row(string Id, PatientSummary? Patient, EncounterSummary? Encounter, string? Error);
     protected override Task OnInitializedAsync() => RefreshAsync();
-    private Task RefreshAsync() => RunAsync(async () => { Available = await Lists.ReadAsync(); if (!Available.Any(l => l.Id == Selected)) Selected = ""; await LoadMembersAsync(); });
+    private Task RefreshAsync() => RunAsync(async () =>
+    {
+        Available = await Lists.ReadAsync();
+        if (!Available.Any(list => list.Id == Selected))
+        {
+            Selected = Available.FirstOrDefault()?.Id ?? "";
+            Page = 0;
+            ConfirmDelete = false;
+        }
+        await LoadMembersAsync();
+    });
     private Task SelectAsync(ChangeEventArgs args) => RunAsync(async () => { Selected = args.Value?.ToString() ?? ""; Page = 0; ConfirmDelete = false; await LoadMembersAsync(); });
     private Task CreateAsync() => RunAsync(async () => { Selected = await Lists.CreateAsync(NewName); NewName = ""; Page = 0; Available = await Lists.ReadAsync(); await LoadMembersAsync(); });
     private Task RenameAsync() => RunAsync(async () => { await Lists.RenameAsync(Selected, Rename); Available = await Lists.ReadAsync(); });

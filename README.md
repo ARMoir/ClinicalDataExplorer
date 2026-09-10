@@ -94,7 +94,7 @@ Search by location name or ID, patient name, or patient identifier / MRN. Locati
 
 **My lists** supports creating, renaming, and deleting named private lists such as Follow-up or Chart review. List selection and creation are grouped side by side; rename/delete controls appear below for the selected list. Fields and buttons use consistent sizing and stack on small screens. Deleting a list requires confirmation in the page.
 
-Use **Save to patient list** from the directory, Census, or a patient report to select an existing list or create one and save. Duplicate saves retain one membership. Remove individual patients from a list at any time. Removing patients or deleting lists never changes FHIR records.
+Use **Save to patient list** from the directory, Census, or a patient report to select an existing list or create one and save. When opening My lists or the save-patient controls, the first list in alphabetical order is selected automatically if no valid selection exists. Refreshing or reopening the controls preserves a valid current selection. Saving still requires clicking Save patient. Duplicate saves retain one membership. Remove individual patients from a list at any time. Removing patients or deleting lists never changes FHIR records.
 
 Lists require a named authenticated account, even if application authentication is disabled. They are scoped to the account (Windows SID where available) and configured FHIR server URL. Administrators do not gain access to another user's lists through this feature. Reload the page after changing servers; lists for other servers remain stored and reappear when switching back.
 

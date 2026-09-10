@@ -29,9 +29,9 @@
             <button class="secondary-button" data-audit="PatientReport:ContinueDiscovery" @onclick="() => LoadMoreAsync(null)">Find more categories and records</button>
         }
         <div class="report-controls">
-            <label for="resource-filter">Find a section <input data-audit="PatientReport:SectionFilter" id="resource-filter" @bind="Filter" @bind:event="oninput" placeholder="e.g. visits or medications" /></label>
-            <label><input data-audit="PatientReport:ShowEmptySections" type="checkbox" @bind="ShowEmpty" /> Show types with no returned records</label>
+            <label class="report-section-search" for="resource-filter">Find a section <input data-audit="PatientReport:SectionFilter" id="resource-filter" @bind="Filter" @bind:event="oninput" placeholder="e.g. visits or medications" /></label>
             <button data-audit="PatientReport:ExpandVisibleSections" class="secondary-button" @onclick="ExpandVisible">Expand visible sections</button><button data-audit="PatientReport:CollapseAllSections" class="secondary-button" @onclick="CollapseAll">Collapse all</button>
+            <label class="report-empty-toggle"><input data-audit="PatientReport:ShowEmptySections" type="checkbox" @bind="ShowEmpty" /> <span>Show types with no returned records</span></label>
         </div>
         <details class="section-picker"><summary data-audit="PatientReport:ChooseSections">Choose sections for this report</summary><div class="section-choices">@foreach (var section in Sections.Where(s => s.Count > 0)) { <label><input data-audit="PatientReport:SectionVisibility" type="checkbox" checked="@(!Hidden.Contains(section.ResourceType))" @onchange="() => ToggleVisibility(section)" /> @(section.Label) (@(section.Count))</label> }</div></details>
     </section>

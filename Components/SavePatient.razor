@@ -28,7 +28,12 @@
     private string Selected = "", Name = "";
     private string? Message, Error;
     private bool Busy;
-    private Task LoadAsync() => RunAsync(async () => Available = await Lists.ReadAsync());
+    private Task LoadAsync() => RunAsync(async () =>
+    {
+        Available = await Lists.ReadAsync();
+        if (!Available.Any(list => list.Id == Selected))
+            Selected = Available.FirstOrDefault()?.Id ?? "";
+    });
     private Task SaveAsync() => RunAsync(async () => { await Lists.AddAsync(Selected, PatientId); Message = "Patient saved to your list."; });
     private Task CreateAsync() => RunAsync(async () =>
     {
