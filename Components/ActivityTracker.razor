@@ -24,7 +24,7 @@
         }
         catch (Exception) { Error = "Activity auditing is unavailable. Reload the page or contact an administrator."; StateHasChanged(); }
     }
-    private Task RecordPageAsync() => Activity.RecordAsync("PageView", UserActivityService.SafeTarget(Navigation.Uri), "Observed");
+    private Task RecordPageAsync() => Activity.RecordAsync("PageView", UserActivityService.SafePageTarget(Navigation.Uri), "Observed");
     private async void LocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs args)
     {
         try { await InvokeAsync(RecordPageAsync); }
@@ -35,7 +35,7 @@
     {
         if (kind is not ("click" or "change" or "submit" or "toggle" or "print-dialog")) return Task.CompletedTask;
         if (control.Length > 160) control = control[..160];
-        return Activity.RecordAsync("Interface." + kind, UserActivityService.SafeTarget(Navigation.Uri), "Client-observed", control);
+        return Activity.RecordAsync("Interface." + kind, UserActivityService.SafePageTarget(Navigation.Uri), "Client-observed", control);
     }
     public async ValueTask DisposeAsync()
     {

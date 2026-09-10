@@ -13,7 +13,7 @@
         Busy = true; Error = null;
         try
         {
-            await Activity.RecordAsync("PrintRequested", UserActivityService.SafeTarget(Navigation.Uri), "Requested");
+            await Activity.RecordAsync("PrintRequested", UserActivityService.SafePageTarget(Navigation.Uri), "Requested");
             await JS.InvokeVoidAsync("window.print");
         }
         catch (Exception) { Error = "Unable to audit or open the print dialog. Please retry."; }

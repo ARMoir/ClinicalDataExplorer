@@ -42,7 +42,8 @@ public sealed class PatientListService
         return (owner, user.Identity.Name, server);
     }
     private static string ServerKey(string url) => new Uri(url.TrimEnd('/') + "/").AbsoluteUri;
-    public async Task<IReadOnlyList<SavedPatientList>> ReadAsync()
+    public Task<IReadOnlyList<SavedPatientList>> ReadAsync() => AuditedAsync("PatientListRead", "/patient-lists", ReadCoreAsync);
+    private async Task<IReadOnlyList<SavedPatientList>> ReadCoreAsync()
     {
         var context = await ContextAsync();
         using var connection = store.Open();
@@ -55,15 +56,18 @@ public sealed class PatientListService
         while (reader.Read()) result.Add(new(reader.GetString(0), reader.GetString(1), reader.GetInt32(2)));
         return result;
     }
-    public async Task<IReadOnlyList<string>> MembersAsync(string id)
+    public Task<IReadOnlyList<string>> MembersAsync(string id) => AuditedAsync("PatientListMembersRead", ListTarget(id), () => MembersCoreAsync(id));
+    private async Task<IReadOnlyList<string>> MembersCoreAsync(string id)
     {
         var context = await ContextAsync();
         using var connection = store.Open();
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT PatientId FROM PatientListMembers JOIN PatientLists ON Id=ListId WHERE Id=$id AND Owner=$owner AND Server=$server ORDER BY PatientId";
         command.Parameters.AddWithValue("$id", id);
         command.Parameters.AddWithValue("$owner", context.Owner);
         command.Parameters.AddWithValue("$server", context.Server);
+        command.CommandText = "SELECT COUNT(*) FROM PatientLists WHERE Id=$id AND Owner=$owner AND Server=$server";
+        if ((long)command.ExecuteScalar()! != 1) throw new UnauthorizedAccessException("This list is unavailable.");
+        command.CommandText = "SELECT PatientId FROM PatientListMembers WHERE ListId=$id ORDER BY PatientId";
         using var reader = command.ExecuteReader();
         var result = new List<string>();
         while (reader.Read()) result.Add(reader.GetString(0));
@@ -72,20 +76,51 @@ public sealed class PatientListService
     public async Task<string> CreateAsync(string name)
     {
         var id = Guid.NewGuid().ToString("N");
-        await ChangeAsync("PatientListCreate", id, name: ValidateName(name));
+        await ChangeAsync("PatientListCreate", id, name: name);
         return id;
     }
-    public Task RenameAsync(string id, string name) => ChangeAsync("PatientListRename", id, name: ValidateName(name));
+    public Task RenameAsync(string id, string name) => ChangeAsync("PatientListRename", id, name: name);
     public Task DeleteAsync(string id) => ChangeAsync("PatientListDelete", id);
-    public Task AddAsync(string id, string patientId) => ChangeAsync("PatientListAdd", id, ValidatePatient(patientId));
-    public Task RemoveAsync(string id, string patientId) => ChangeAsync("PatientListRemove", id, ValidatePatient(patientId));
+    public Task AddAsync(string id, string patientId) => ChangeAsync("PatientListAdd", id, patientId);
+    public Task RemoveAsync(string id, string patientId) => ChangeAsync("PatientListRemove", id, patientId);
     private static string ValidateName(string name) => string.IsNullOrWhiteSpace(name) || name.Trim().Length > 80
         ? throw new ArgumentException("Enter a list name of 1–80 characters.") : name.Trim();
     private static string ValidatePatient(string id) => Regex.IsMatch(id, @"\A[A-Za-z0-9\-.]{1,64}\z")
         ? id : throw new ArgumentException("Invalid patient ID.");
-    private async Task ChangeAsync(string action, string id, string patient = "", string name = "")
+    private Task ChangeAsync(string action, string id, string patient = "", string name = "") =>
+        AuditedAsync(action, ListTarget(id), async () =>
+        {
+            await ChangeCoreAsync(action, id, patient, name);
+            return true;
+        }, recordSuccess: false);
+    private static string ListTarget(string id) => "/patient-lists/" + (Guid.TryParseExact(id, "N", out _) ? id : "invalid-id");
+    private async Task<T> AuditedAsync<T>(string action, string target, Func<Task<T>> operation, bool recordSuccess = true)
+    {
+        await activity.RecordAsync(action, target, "Attempted");
+        try
+        {
+            var result = await operation();
+            if (recordSuccess) await activity.RecordAsync(action, target, "Succeeded", result switch
+            {
+                IReadOnlyList<SavedPatientList> lists => "Lists returned: " + lists.Count,
+                IReadOnlyList<string> patients => "Patient references returned: " + string.Join(", ", patients.Select(id => "Patient/" + id)),
+                _ => ""
+            });
+            return result;
+        }
+        catch (Exception ex)
+        {
+            // The operation's transaction is disposed before a failure is recorded.
+            // Do not include exception messages, list names, or arbitrary submitted values.
+            await activity.RecordAsync(action, target, ex is UnauthorizedAccessException ? "Denied" : "Failed", ex.GetType().Name);
+            throw;
+        }
+    }
+    private async Task ChangeCoreAsync(string action, string id, string patient, string name)
     {
         var context = await ContextAsync();
+        if (action is "PatientListCreate" or "PatientListRename") name = ValidateName(name);
+        if (action is "PatientListAdd" or "PatientListRemove") patient = ValidatePatient(patient);
         using var connection = store.Open();
         using var transaction = connection.BeginTransaction();
         using var command = connection.CreateCommand();

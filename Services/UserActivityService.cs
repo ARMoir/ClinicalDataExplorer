@@ -30,6 +30,19 @@ public sealed class UserActivityService(AuditStore store, AuthenticationStatePro
         var keys = QueryHelpers.ParseQuery(uri.Query).Keys.Order(StringComparer.Ordinal);
         return uri.AbsolutePath + (uri.Query.Length == 0 ? "" : "?" + string.Join("&", keys));
     }
+    // Page/print context can preserve validated resource IDs without retaining
+    // report identifiers, search values, tokens, or arbitrary external URLs.
+    public static string SafePageTarget(string url)
+    {
+        var uri = new Uri(new Uri("https://local.invalid/"), url);
+        var query = QueryHelpers.ParseQuery(uri.Query);
+        string? key = uri.AbsolutePath == "/reports/view" ? "reportId" : uri.AbsolutePath == "/record" ? "reference" : null;
+        if (key is null || !query.TryGetValue(key, out var values) || values.Count != 1) return SafeTarget(url);
+        var value = values[0] ?? "";
+        var pattern = key == "reportId" ? @"\A[A-Za-z0-9\-.]{1,64}\z" : @"\A[A-Z][A-Za-z]+/[A-Za-z0-9\-.]{1,64}\z";
+        return System.Text.RegularExpressions.Regex.IsMatch(value, pattern)
+            ? SafeTarget(url) + "; " + (key == "reportId" ? "DiagnosticReport/" : "") + value : SafeTarget(url);
+    }
     public async Task<IReadOnlyList<AuditEntry>> ReadAsync(string user, string action, long before)
     {
         await RequireAdministratorAsync();

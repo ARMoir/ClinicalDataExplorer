@@ -225,7 +225,7 @@ public sealed class PatientExplorerTests
         var observations = Assert.Single(sections, s => s.ResourceType == "Observation");
         Assert.Equal("scalar", Assert.Single(observations.Resources).Element(XName.Get("id", "http://hl7.org/fhir"))!.Attribute("value")!.Value);
         var html = Transform("PatientResources", reports.PageXml());
-        Assert.Contains("<details class=\"observation-report-text\"><summary>View report text</summary>", html);
+        Assert.Contains("<details class=\"observation-report-text\" data-audit=\"ObservationReportText:report\"><summary>View report text</summary>", html);
         var reportDetailsTag = html.Split("<details class=\"observation-report-text\"", 2)[1].Split('>', 2)[0];
         Assert.DoesNotContain("open", reportDetailsTag);
         var body = html.Split("<div class=\"clinical-document\">", 2)[1].Split("<details", 2)[0];

@@ -14,7 +14,9 @@ export function start(receiver) {
         const element = event.target.closest?.("[data-audit],button,a,input,select,textarea,summary,details,form");
         if (!element || element.disabled) return;
         // Never send text content, entered values, hrefs, or DOM snapshots.
-        report(event.type, element.dataset.audit || element.id || element.tagName.toLowerCase());
+        const control = element.dataset.audit || element.id || element.tagName.toLowerCase();
+        const state = event.type === "toggle" && element.tagName === "DETAILS" ? (element.open ? "; expanded=true" : "; expanded=false") : "";
+        report(event.type, control + state);
     };
     const print = () => report("print-dialog", "browser-print");
     for (const kind of ["click", "change", "submit", "toggle"]) document.addEventListener(kind, handler, true);

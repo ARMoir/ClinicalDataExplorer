@@ -27,7 +27,8 @@ public sealed class PatientListTests : IDisposable
         Assert.Equal(2, Assert.Single(await reopened.ReadAsync()).Count);
         Assert.Equal(2, (await reopened.MembersAsync(id)).Count);
         var bob = Service(context, "DOMAIN\\bob");
-        Assert.Empty(await bob.ReadAsync()); Assert.Empty(await bob.MembersAsync(id));
+        Assert.Empty(await bob.ReadAsync());
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bob.MembersAsync(id));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bob.AddAsync(id, "p2"));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bob.RemoveAsync(id, "p1"));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => bob.RenameAsync(id, "Hijacked"));
@@ -37,7 +38,8 @@ public sealed class PatientListTests : IDisposable
         await reopened.RemoveAsync(id, "p1");
         Assert.Equal("P1", Assert.Single(await reopened.MembersAsync(id)));
         await reopened.DeleteAsync(id);
-        Assert.Empty(await reopened.ReadAsync()); Assert.Empty(await reopened.MembersAsync(id));
+        Assert.Empty(await reopened.ReadAsync());
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => reopened.MembersAsync(id));
         var audit = new AuditStore(Database).Read();
         Assert.Contains(audit, e => e.Action == "PatientListCreate");
         Assert.Contains(audit, e => e.Action == "PatientListRename");
@@ -80,8 +82,16 @@ public sealed class PatientListTests : IDisposable
             command.ExecuteNonQuery();
         }
         await Assert.ThrowsAsync<SqliteException>(() => service.AddAsync(id, "p1"));
-        Assert.Empty(await service.MembersAsync(id));
         await Assert.ThrowsAsync<SqliteException>(() => service.DeleteAsync(id));
+        await Assert.ThrowsAsync<SqliteException>(() => service.MembersAsync(id));
+        await Assert.ThrowsAsync<SqliteException>(() => service.ReadAsync());
+        using (var connection = new SqliteConnection($"Data Source={Database};Pooling=False"))
+        {
+            connection.Open(); using var command = connection.CreateCommand();
+            command.CommandText = "DROP TRIGGER RejectAudit";
+            command.ExecuteNonQuery();
+        }
+        Assert.Empty(await service.MembersAsync(id));
         Assert.Single(await service.ReadAsync());
     }
     [Fact]
@@ -94,6 +104,33 @@ public sealed class PatientListTests : IDisposable
         var result = await context.Service.GetSavedPatientAsync("p1");
         Assert.Equal("Current", result.Patient.DisplayName); Assert.Equal("e1", result.Encounter!.Id);
         Assert.Equal(2, handler.Calls);
+    }
+    [Fact]
+    public async Task Reads_denials_validation_failures_and_transaction_rollback_are_audited()
+    {
+        using var context = new FhirTestContext("https://fhir.example/r4/");
+        var service = Service(context);
+        var id = await service.CreateAsync("Private title");
+        await service.AddAsync(id, "p1");
+        await service.MembersAsync(id);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Service(context, "DOMAIN\\bob").MembersAsync(id));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Service(context, null).ReadAsync());
+        await Assert.ThrowsAsync<ArgumentException>(() => service.AddAsync(id, "secret/invalid"));
+        using (var connection = new SqliteConnection($"Data Source={Database};Pooling=False"))
+        {
+            connection.Open(); using var command = connection.CreateCommand();
+            command.CommandText = "CREATE TRIGGER RejectCompletion BEFORE INSERT ON AuditEvents WHEN NEW.Action='PatientListAdd' AND NEW.Outcome='Succeeded' BEGIN SELECT RAISE(ABORT, 'Unavailable'); END;";
+            command.ExecuteNonQuery();
+        }
+        await Assert.ThrowsAsync<SqliteException>(() => service.AddAsync(id, "p2"));
+        Assert.Equal("p1", Assert.Single(await service.MembersAsync(id)));
+        var entries = new AuditStore(Database).Read();
+        Assert.Contains(entries, e => e.Action == "PatientListMembersRead" && e.Outcome == "Succeeded" && e.Details.Contains("Patient/p1"));
+        Assert.Contains(entries, e => e.User == "DOMAIN\\bob" && e.Outcome == "Denied");
+        Assert.Contains(entries, e => e.User == "Anonymous" && e.Outcome == "Denied");
+        Assert.Contains(entries, e => e.Action == "PatientListAdd" && e.Outcome == "Failed" && e.Details == "ArgumentException");
+        Assert.Contains(entries, e => e.Action == "PatientListAdd" && e.Outcome == "Failed" && e.Details == "SqliteException");
+        Assert.All(entries, e => { Assert.DoesNotContain("Private title", e.Details); Assert.DoesNotContain("secret", e.Details); });
     }
     public void Dispose() => root.Delete(true);
     private sealed class IdentityProvider(string? name) : AuthenticationStateProvider

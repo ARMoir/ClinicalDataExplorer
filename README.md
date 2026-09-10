@@ -156,6 +156,8 @@ For IIS, enable the Windows Authentication role service, enable Windows Authenti
 
 The administrator Audit page displays events newest first with user/action filters and 50-event paging. Events cover application access, interactive sessions and navigation, FHIR reads, report controls and paging, settings changes, printing requests, audit review, and saved-list mutations. Client-observed interface events supplement server events; they do not prove a user read a record or completed an action.
 
+Saved-list reads, denied access, failed mutations, and validation failures are also audited. FHIR 401/403 responses are marked Denied with their HTTP status. Generated document toggles include the Observation ID and expanded state without the report body. Validated resource IDs are retained in supported page/print targets while search values remain excluded. See the [audit coverage review and remaining deployment work](docs/audit.md#coverage-review-and-remaining-deployment-work) for host logging, retention, monitoring, and tamper-resistant storage requirements that are not supplied by application logging alone.
+
 | Location | Contents |
 | --- | --- |
 | `App_Data/application-settings.json` | Runtime settings |

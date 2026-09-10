@@ -394,7 +394,11 @@ public sealed partial class FhirService(
         }
         catch (Exception ex)
         {
-            await activity.RecordAsync("FhirRead", target, ex is OperationCanceledException ? "Cancelled" : "Failed", operation + ex.GetType().Name);
+            var status = (ex as HttpRequestException)?.StatusCode;
+            var outcome = ex is OperationCanceledException ? "Cancelled" :
+                status is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden ? "Denied" : "Failed";
+            await activity.RecordAsync("FhirRead", target, outcome, operation + ex.GetType().Name +
+                (status is null ? "" : "; HTTP " + (int)status));
             throw;
         }
     }

@@ -93,6 +93,32 @@ public sealed class AuditTests : IDisposable
     [InlineData("/reports/view?reportId=123", "/reports/view?reportId")]
     public void Targets_exclude_query_values(string input, string expected) => Assert.Equal(expected, UserActivityService.SafeTarget(input));
 
+    [Theory]
+    [InlineData("/reports/view?reportId=r1&identifier=secret", "/reports/view?identifier&reportId; DiagnosticReport/r1")]
+    [InlineData("/record?reference=Observation%2Fo1", "/record?reference; Observation/o1")]
+    [InlineData("/record?reference=https://secret.example/Patient/p1?token=secret", "/record?reference")]
+    [InlineData("/reports/view?identifier=secret", "/reports/view?identifier")]
+    [InlineData("/reports/view?reportId=r1&reportId=r2", "/reports/view?reportId")]
+    public void Page_targets_preserve_only_validated_resource_references(string input, string expected) =>
+        Assert.Equal(expected, UserActivityService.SafePageTarget(input));
+
+    [Theory]
+    [InlineData(401, "Denied")]
+    [InlineData(403, "Denied")]
+    [InlineData(500, "Failed")]
+    public async Task Fhir_http_failures_record_status_without_response_bodies(int status, string outcome)
+    {
+        using var handler = new ScriptedHandler(_ => new HttpResponseMessage((System.Net.HttpStatusCode)status)
+        { Content = new StringContent("sensitive response body") });
+        using var context = new FhirTestContext("https://fhir.example/r4/", handler);
+        var store = new AuditStore(Database);
+        var activity = new UserActivityService(store, new TestAuthentication("DOMAIN\\user"), context.Settings);
+        await Assert.ThrowsAsync<HttpRequestException>(() => new FhirService(context, context.Settings, activity).GetPatientXmlAsync("p1"));
+        var failure = Assert.Single(store.Read(), e => e.Outcome == outcome);
+        Assert.Contains("HTTP " + status, failure.Details);
+        Assert.DoesNotContain("sensitive", failure.Details);
+    }
+
     private sealed class TestAuthentication(string name) : AuthenticationStateProvider
     {
         public override Task<AuthenticationState> GetAuthenticationStateAsync() => Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, name)], "Test"))));
