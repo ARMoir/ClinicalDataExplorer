@@ -1,91 +1,189 @@
 # Clinical Data Explorer
 
-Production-oriented .NET 10 Blazor Web App for exploring clinical data from a FHIR server. The centered patient directory shows 10 patients per page, ordered by most recent encounter, with identifier/MRN and last/first-name search. Selecting a patient opens a branded, customizable report with demographics and expandable resource sections.
+.NET 10 Blazor Web App for exploring FHIR R4 clinical data. It provides patient search, customizable patient and diagnostic reports, a location census, private patient lists, and an administrator audit log. Clinical records are read from the configured FHIR server; application settings, branding uploads, audit events, and saved list references are stored locally.
 
-## Patient explorer
+## Run and test
 
-The main page uses standard FHIR searches:
-
-- `Encounter?_sort=-date&_include=Encounter:patient` to find the 10 distinct patients with the most recent encounters
-- `Patient?identifier=...` to search across patient identifiers
-- `Patient?family=...&given=...` to search by last name, first name, or both
-- `Patient/[id]/$everything` to retrieve patient records and supporting resources across all result pages
-- `Encounter?patient=...&_sort=-date` for the selected patient's encounters
-- `Observation?encounter:Encounter=...&_summary=count` for encounter observation counts
-- `Observation?encounter:Encounter=...&_sort=-date` to open an encounter's complete observation list (the explicit reference type avoids ambiguous searches on Firely)
-
-Encounter Bundle pagination links are followed automatically, while paging is restricted to the configured FHIR server.
-
-## Census
-
-Open **Census** next to Reports (`/census`) to see all locations and their current encounters, with links to encounter and patient reports. Locations are ordered by their newest current encounter start date, and encounters within each location are newest first. Undated encounters follow dated encounters; empty locations appear last, with alphabetical ordering for ties. Encounters without a current assignment appear under **No current location recorded**. Refresh reloads the census and updates its displayed load time. The previous `/location-census` address remains available.
-
-The census searches `Location` and `Encounter?status=arrived,triaged,in-progress,onleave&_include=Encounter:patient`, following all pages within the existing safety limits. Future and ended encounter periods are excluded. Location assignments must be active (or have no status) and within their recorded period. Completed, planned and reserved assignments are excluded. Encounters with multiple current assignments appear in each location; the overall encounter count is distinct. Search failures are displayed as errors rather than an empty or partial census.
-
-Search the loaded census by location name or ID, patient name, or patient identifier / MRN. Location matches show every encounter at that location; patient matches show only matching encounters. **Hide empty locations** removes locations with no current encounters. Counts show the filtered results against the full census, and **Clear filters** restores all results. Filters remain applied when refreshing.
-
-## Saved patient lists
-
-Open **My lists** (`/patient-lists`) to create, rename, or delete private lists such as Follow-up or Chart review. Use **Save to patient list** from a patient search result, Census patient, or patient report to choose an existing list or create one. Duplicate saves keep one membership. Removing a patient or deleting a list never changes FHIR records.
-
-Lists require a named, authenticated account, even when application authentication is disabled. They are scoped to the account (Windows SID where available) and FHIR server URL. After changing servers, reload the page; lists for other servers remain stored and reappear when switching back. Administrators do not gain access to another user's lists through this feature.
-
-The list page loads ten patients at a time, fetching current demographics and the latest encounter through `Encounter?patient=...&_sort=-date&_count=1`. Refresh retrieves current details again. Unavailable records show a retry message and can still be removed. Each patient links to their report, and each returned latest encounter links to its encounter report.
-
-List names, ownership, server URLs, and patient IDs are stored in tables within `App_Data/audit.sqlite`; demographics and clinical records are not copied into these tables. List mutations and their audit events commit in one SQLite transaction. Audit events include list IDs and affected patient references, without list names. Protect and back up this database using the same application identity permissions as the existing audit store.
-
-## Run
+Install the .NET 10 SDK, then run from the repository root:
 
 ```powershell
 dotnet restore
 dotnet run
 ```
 
-## Tests
+Windows authentication is enabled by default. Configure the FHIR endpoint and branding in **Settings**. The default endpoint is `http://summittest:8080/`; replace it with the endpoint for your environment.
 
-See [testing and server compatibility](docs/testing.md) for offline tests and opt-in live tests against HAPI or Microsoft FHIR Server with SQL Server persistence.
+```powershell
+dotnet test ClinicalDataExplorer.sln
+```
 
-## Application settings
+Offline tests use synthetic records and scripted HTTP responses. Live FHIR tests are opt-in and skipped by default. See [testing and server compatibility](docs/testing.md) for HAPI and Microsoft FHIR Server test instructions. Passing offline tests does not verify a deployed server or its authentication configuration.
 
-Open `/settings` from the top navigation to configure:
+## Navigation
 
-- Product name (user-facing application title)
-- Facility name
-- FHIR base URL
-- Facility logo (PNG, JPG, WebP; max 5 MB)
-- Primary color
-- Secondary color
+| View | Address | Purpose |
+| --- | --- | --- |
+| Patients | `/` | Search patients and browse recent encounters |
+| Patient report | `/patient/{id}` | Demographics and expandable clinical sections |
+| Reports | `/reports` | Find diagnostic reports by identifier or browse recent reports |
+| Diagnostic report | `/reports/view?identifier=...` or `?reportId=...` | View a report with patient and encounter context |
+| Encounter report | `/encounter/{id}` | Encounter details and observations |
+| Census | `/census` | Current encounters grouped by location |
+| My lists | `/patient-lists` | Manage private saved patient lists |
+| Referenced record | `/record?reference=...` | View a supported linked FHIR record |
+| Settings | `/settings` | Administrator configuration and branding |
+| Audit | `/audit` | Administrator activity review |
 
-Settings are persisted to:
+The previous `/location-census` and `/diagnostic-report` addresses remain available. The shared footer contains **System & reference information**.
 
-`App_Data/application-settings.json`
+## Patient directory and providers
 
-Example:
+The directory shows **five patients per page**, ordered by most recent encounter. Search by patient identifier / MRN, last name, first name, or both names. New searches reset to page one. Next follows server continuation links on demand; Previous returns to retained pages. Recent-patient discovery deduplicates patients across encounter pages while preserving newest-encounter order.
+
+Patient cards show identifiers, demographics, contact details, record ID, and associated providers. Expand provider identifiers to see names, references, identifier values, and issuing systems. Missing or incomplete provider lookups are shown explicitly. Recent browsing has a five-second per-patient lookup budget; slow records may be skipped or have incomplete provider details. Searching for a patient specifically removes that short browsing budget, while ordinary request timeouts and paging limits still apply.
+
+For signed-in users, **Save to patient list** appears below associated providers in the directory, matching their compact text size. Patient cards link directly to the patient report.
+
+## Patient reports
+
+Patient demographics load first. Clinical sections are discovered progressively from `Patient/{id}/$everything`, including supporting resources returned by the server. Up to **50 records per section** are initially available; loading pauses when a section reaches its limit. **Find more categories and records** resumes discovery, and **Load more (up to 50)** increases a section's available records. Sections display **ten records per page**.
+
+Counts describe records available so far and can be partial while loading is active or paused, or after a failure. Previously loaded content remains visible with an explicit incomplete-results message if loading fails; **Retry report** restarts loading. After discovery completes, **Show types with no returned records** makes empty patient-compartment categories available. Zero records returned is not proof of clinical absence.
+
+Controls let users find sections, choose visible sections, expand/collapse sections, and page through records. Sections start collapsed; choices are local to the current report view. Populated sections appear before empty ones. Within the clinical reading order, **Related persons** is followed by:
+
+1. **Observations and measurements**
+2. **Documents**
+3. Medication sections: reported medications, medication orders, administrations, dispensed medications, and the medication catalog
+
+Records are sorted newest first using relevant clinical dates, with update timestamps as a fallback and undated records last. Each record retains **All record details**, including nested fields, extensions, contained resources, and references. Supported references link to patient, encounter, report, or referenced-record views; unsupported references remain readable.
+
+### Observations, measurements, and documents
+
+Tabular observations and component measurements show **Test, Result, Units, Flag, Reference range, Date, Provider, and Status**, with notes and full record details beneath the result. Quantity comparators are retained. The Units column prefers the recorded unit label, falls back to its code, and shows `—` when neither is supplied. Units are not inferred or converted. Abnormal and critical flags are visually distinguished. Other report templates may show units inline with their results.
+
+Observations containing multiline text, including literal `\n` separators, are presented in **Documents**. This is display grouping only; the underlying FHIR resource remains an Observation. Report text is **collapsed by default**: click **View report text** to reveal formatted headings, labeled lines, spacing, and separators. Original record details remain available separately.
+
+**Print visible pages** opens the browser print dialog for expanded patient sections and their currently displayed record pages. Expand any document text you want to view before printing and check the browser preview. Printing does not fetch remaining pages or records.
+
+## Diagnostic and encounter reports
+
+**Reports** accepts a report identifier and displays recent diagnostic reports when no report is selected. Recent-report cards include patient demographics and provider associations when available, dates, IDs, and links to the report, with ten records per page and refresh controls.
+
+A diagnostic report includes patient demographics when available, links to its patient and encounter, a branded report body, and a Print button. Failed loads offer Retry. Encounter reports display encounter details and associated observations with a Print button.
+
+Diagnostic report searches request included results and iterative provider references:
+
+```text
+_include=DiagnosticReport:result
+_include:iterate=Observation:performer
+_include:iterate=PractitionerRole:practitioner
+```
+
+Provider presentation uses display names and resolves PractitionerRole, Practitioner, and supported Organization references where available. Unresolved references remain visible as a fallback. Searches follow continuation pages and deduplicate included resources. A server that rejects required includes returns a search error; verify support against the target deployment.
+
+## Census
+
+**Census** groups current encounters by location and links to encounter and patient reports. Locations are ordered by newest current encounter start date; encounters within each location are newest first. Undated encounters follow dated encounters, with alphabetical location tie-breaking. Encounters lacking a current location assignment appear under **No current location recorded**.
+
+The census loads `Location` and `Encounter?status=arrived,triaged,in-progress,onleave&_include=Encounter:patient`. Future and ended encounter periods are excluded. Current location assignments must be active or have no status, and fall within their recorded period. Completed, planned, and reserved assignments are excluded. An encounter with multiple current assignments appears at each location; the overall encounter count is distinct. Search failures display errors rather than an empty or partial census.
+
+Search by location name or ID, patient name, or patient identifier / MRN. Location matches retain all encounters at that location; patient matches retain only matching patients. **Hide empty locations is checked by default.** Uncheck it to include empty locations, which sort last. **Clear filters** clears the search and unchecks Hide empty locations. Refresh retains the current filters, reloads the census, and updates its load time. Counts compare filtered results with the full loaded census. Signed-in users can save patients to their lists directly from Census.
+
+## Saved patient lists
+
+**My lists** supports creating, renaming, and deleting named private lists such as Follow-up or Chart review. List selection and creation are grouped side by side; rename/delete controls appear below for the selected list. Fields and buttons use consistent sizing and stack on small screens. Deleting a list requires confirmation in the page.
+
+Use **Save to patient list** from the directory, Census, or a patient report to select an existing list or create one and save. Duplicate saves retain one membership. Remove individual patients from a list at any time. Removing patients or deleting lists never changes FHIR records.
+
+Lists require a named authenticated account, even if application authentication is disabled. They are scoped to the account (Windows SID where available) and configured FHIR server URL. Administrators do not gain access to another user's lists through this feature. Reload the page after changing servers; lists for other servers remain stored and reappear when switching back.
+
+Lists load ten patients at a time, fetching current demographics and the latest encounter using `Encounter?patient=...&_sort=-date&_count=1`. Refresh retrieves details again. Each patient links to their report, and a returned latest encounter links to its encounter report. Unavailable details display an error and can be retried with Refresh; affected patients can still be removed.
+
+List names, owners, server URLs, and patient IDs are stored in tables within `App_Data/audit.sqlite`. Demographics and clinical records are fetched from FHIR rather than copied into list storage. List mutations and their audit events commit together in one SQLite transaction. Audit events identify lists and affected patient references without storing list names.
+
+## System and reference information
+
+Expand **System & reference information** in the footer to access:
+
+- **Server information:** the connected server's capability statement.
+- **Terminology services:** terminology capabilities or available terminology information.
+- **Reference library:** searchable shared categories advertised by the server, such as directories, terminology, forms, and definitions.
+
+Views load on demand and offer refresh and continuation-based paging where applicable. Reference categories exclude ordinary patient records, which remain in patient reports. A footer lookup failure is displayed locally and does not replace the patient view.
+
+## Settings and branding
+
+Settings requires administrator access. Configure:
+
+- Product and facility names.
+- FHIR base URL.
+- Facility logo: PNG, JPG, or WebP, up to 5 MB; upload or remove it.
+- Primary and secondary colors, with branding preview.
+- Authentication mode and optional Windows domain restriction.
+- Whether all users are administrators, or a list of administrator account names.
+
+Settings persist in `App_Data/application-settings.json`. Example:
 
 ```json
 {
   "ProductName": "Clinical Data Explorer",
   "FacilityName": "Your Facility",
   "FhirBaseUrl": "http://summittest:8080/",
+  "AuthenticationMode": "Windows",
+  "WindowsDomain": "",
+  "AllUsersAreAdministrators": true,
+  "AdministratorUsers": "",
   "LogoPath": null,
   "PrimaryColor": "#1F618D",
   "SecondaryColor": "#17202A"
 }
 ```
 
-The product name and FHIR base URL are read from these application settings at runtime. Changing the product name updates the user-facing application header/browser titles, while changing the FHIR base URL affects the next API request without rebuilding the application.
+Names, colors, and the endpoint are read at runtime. Changes do not require rebuilding the application; endpoint changes affect subsequent requests. Uploaded logos are stored in `wwwroot/uploads/`. Branding is applied to the shared header and report templates. The interface includes keyboard focus indicators, a skip-to-content link, responsive layouts, and high-contrast styling.
 
-Uploaded logos are stored under:
+## Windows authentication and administration
 
-`wwwroot/uploads/`
+The application uses Negotiate with the Windows identity supplied by IIS, IIS Express, or Kestrel on Windows. It does not collect AD passwords or require a domain-controller address or service-account credentials. The header shows the short and full authenticated identity.
 
-If hosted under IIS or a Windows service account, the application identity needs write permission to those two locations for settings/logo changes to persist.
+`AuthenticationMode` supports `Windows` and `Disabled`; Disabled is intended for development or troubleshooting. `WindowsDomain` optionally restricts accepted identities. Leave it blank initially to verify the identity reported by the host. Windows sign-in to this application does **not** automatically authenticate outbound FHIR requests.
 
-The branding is used by the shared application header and is also passed into `DiagnosticReportBundle.xslt` as XSLT parameters at report-render time.
+For IIS, enable the Windows Authentication role service, enable Windows Authentication on the application/site, and disable Anonymous Authentication. Browse from a domain-connected workstation. Friendly DNS names or more complex deployments may require host-specific Kerberos/SPN setup. IIS Express Windows authentication is enabled in the launch settings.
 
-## Report formatting
+**All users are administrators** defaults to enabled for initial setup, including anonymous users when authentication is disabled. To restrict access, enter full Windows account names, one per line or separated by semicolons, and disable that option. Include your own account. Names are matched case-insensitively; these are account names, not AD groups. Settings and Audit enforce administrator checks even though their navigation links remain visible.
 
-Clinical presentation is customizable through seven XSLT templates:
+## Audit and local storage
+
+The administrator Audit page displays events newest first with user/action filters and 50-event paging. Events cover application access, interactive sessions and navigation, FHIR reads, report controls and paging, settings changes, printing requests, audit review, and saved-list mutations. Client-observed interface events supplement server events; they do not prove a user read a record or completed an action.
+
+| Location | Contents |
+| --- | --- |
+| `App_Data/application-settings.json` | Runtime settings |
+| `App_Data/audit.sqlite` and SQLite sidecar files | Audit events and private saved-list tables |
+| `wwwroot/uploads/` | Uploaded facility logos |
+
+The application identity needs write access to `App_Data` and the uploads directory. Audit storage initializes before requests are accepted. Audit events are append-only through the application, with database triggers rejecting their update/delete; those restrictions do not prevent supported saved-list edits. The application supplies no automatic audit expiry or purge job. Protect and back up the database, including its WAL state, as described in [audit setup, coverage, and deployment requirements](docs/audit.md).
+
+## FHIR behavior and compatibility
+
+The application expects **FHIR R4 XML**. The intended production target is the open-source Microsoft FHIR Server with SQL Server persistence; HAPI R4 is a development integration target. A JSON-only service is not supported by the current XML/XSLT rendering path. Endpoints requiring outbound authorization need that configured separately.
+
+Core queries include:
+
+- `Encounter?_sort=-date&_include=Encounter:patient` for recent-patient discovery.
+- `Patient?identifier=...` and `Patient?family=...&given=...` for patient searches.
+- `Patient/{id}/$everything` for patient sections and supporting records.
+- `Encounter?patient=...&_sort=-date` for patient encounter history.
+- `Observation?encounter:Encounter=...&_summary=count` for observation counts.
+- `Observation?encounter:Encounter=...&_sort=-date` for encounter observations.
+
+Requests use strict handling for required search features. Patient search values escape literal FHIR delimiters. Continuation links must remain within the configured server/base path; automatic HTTP redirects are disabled. Resource identity deduplication is case-sensitive. Invalid XML, unexpected responses, error/fatal OperationOutcomes, and exceeded safety limits produce explicit errors.
+
+The progressive patient-report stream requests 50 records per server page and enforces a maximum of 200 pages / 10,000 returned resources, rejecting repeated continuation links. Other queries have their own bounded paging limits. The HTTP request timeout is 30 seconds. Unsupported `$everything` leaves demographics available while clinical-section loading reports an error. Validate required sorts, includes, and operations on the actual target server; a capability statement alone is insufficient.
+
+## XSLT customization
+
+Eight stylesheets in `XSLT/` control XML presentation:
 
 - `PatientList.xslt`
 - `PatientDetails.xslt`
@@ -94,84 +192,8 @@ Clinical presentation is customizable through seven XSLT templates:
 - `EncounterDetails.xslt`
 - `ObservationList.xslt`
 - `DiagnosticReportBundle.xslt`
+- `ServerInformation.xslt`
 
-The dashboard handles interactive workflow in Razor, while dedicated patient, encounter, observation, and diagnostic-report views render FHIR XML through these templates. Each stylesheet receives these application parameters:
+Razor components handle interactive workflow. Stylesheets receive `facilityName`, `logoPath`, `primaryColor`, and `secondaryColor`; resource views also use view-specific parameters such as `resourceLabel` and `expandDetails`. Stylesheets compile on first use and reload when their timestamps change, allowing presentation edits without recompilation or restart.
 
-- `facilityName`
-- `logoPath`
-- `primaryColor`
-- `secondaryColor`
-
-Stylesheets are compiled on first use and automatically reloaded when their file timestamp changes. They can therefore be customized without recompiling or restarting the application. Scripts, DTDs, external resolvers, and the XSLT `document()` function remain disabled.
-
-## Provider name resolution
-
-DiagnosticReport searches request:
-
-```text
-_include=DiagnosticReport:result
-_include:iterate=Observation:performer
-_include:iterate=PractitionerRole:practitioner
-```
-
-The report stylesheet prefers `Reference.display`, then resolves included `PractitionerRole` and `Practitioner` resources to a human-readable provider name. Direct Practitioner and Organization performers are also supported. If a referenced resource is not returned, the raw performer reference is shown as a fallback. A server that rejects iterative includes produces a search error under strict handling; verify support on the deployed server using the live tests. Diagnostic-report searches follow all result pages and deduplicate repeated included resources.
-
-## Current report columns
-
-Scalar Observation results currently display:
-
-- Test
-- Result
-- Interpretation / abnormal flag
-- Reference range
-- Observation date
-- Provider
-- Status
-- Observation notes directly beneath the associated result
-
-## Windows / Active Directory authentication
-
-Clinical Data Explorer can use the Windows account already signed in on the user's workstation. It doesn't collect or store AD passwords and it doesn't require a domain-controller address or AD service-account credentials.
-
-Authentication is controlled in `App_Data/application-settings.json` and on the Settings page:
-
-```json
-"AuthenticationMode": "Windows",
-"WindowsDomain": ""
-```
-
-- `AuthenticationMode`: currently `Windows` or `Disabled`. `Disabled` is intended only for development/emergency troubleshooting.
-- `WindowsDomain`: optional domain restriction such as `EMERSON`. Leave it blank initially so you can confirm the exact authenticated identity shown in the upper-left header.
-
-The header shows both the short user name and the full Windows identity, for example `AMoir` and `EMERSON\\AMoir`.
-
-### Local development
-
-The project includes the `Microsoft.AspNetCore.Authentication.Negotiate` package and enables Windows Authentication for IIS Express in `Properties/launchSettings.json`. The normal Kestrel project profiles also use Negotiate when run on Windows.
-
-### IIS deployment
-
-On the Clinical Data Explorer IIS application/site:
-
-1. Install/enable the IIS **Windows Authentication** role service if it isn't already installed.
-2. Set **Windows Authentication = Enabled**.
-3. Set **Anonymous Authentication = Disabled**.
-4. Browse from a domain-connected workstation using Edge/Chrome. The browser normally supplies the active Windows account automatically on an intranet site.
-
-For friendly DNS names or more complex deployments, Kerberos/SPN configuration may eventually be needed. Okta/OIDC can later replace Windows authentication without changing the application's authorization/audit model.
-
-
-## Expanded patient report
-
-The patient report requires the FHIR R4 [Patient $everything operation](https://hl7.org/fhir/R4/patient-operation-everything.html). This retrieves patient-compartment records plus supporting records such as Practitioner, Organization, Medication, Device and Binary, as returned by the server for the current access context. Resource types are discovered from the response, so uncommon or additional returned types automatically receive sections. The R4 patient compartment catalog is available through **Show types with no returned records**; zero means no records returned, not proof of clinical absence.
-
-All continuation pages are loaded and resources deduplicated by case-sensitive type/id before counts are shown. Repeated paging links, links outside the configured server, non-Bundle responses, and error/fatal OperationOutcomes fail explicitly. A maximum of 100 pages / 10,000 returned resources prevents unbounded loading; exceeding the limit reports an error without presenting partial counts. Servers that do not implement `$everything` show a resource-count error while demographics remain visible. Verify this operation on the target Microsoft/HAPI deployment before relying on the expanded report.
-
-Report controls support finding sections, choosing visible sections, expanding/collapsing sections, and paging through 10 records within each section. Choices are local to the current report view. **Print visible pages** prints expanded sections and their current record pages. Counts describe complete returned resources, while contained resources and repeated nested elements remain inside their parent resource's **All FHIR fields** view.
-
-`PatientDetails.xslt` renders demographics and the configured facility logo/colors. `PatientResources.xslt` supplies resource summaries and a recursive field renderer that preserves choice values, extensions, references, contained resources and nested fields. Server-provided narratives are rendered as text rather than executable HTML; reference/attachment URLs are displayed as text. Customize these templates to change presentation without recompiling.
-
-Directory pagination follows server continuation links on demand and retains earlier pages for Previous. Recent-patient discovery deduplicates patients across encounter pages, retaining the original newest-encounter order. Identifier and name searches escape literal FHIR delimiters, follow next links, and reset to page 1 for a new search.
-## Audit activity
-
-The Audit page records application activity in SQLite and is available to administrators. All users are administrators by default for initial setup; Settings lets you restrict this to named Windows accounts. See [audit setup, coverage, and deployment requirements](docs/audit.md).
+Scripts, DTDs, external resolvers, and the XSLT `document()` function are disabled. Server-provided narratives and clinical text are rendered as text rather than executable HTML. Supported record links are resolved within the application's FHIR reference rules.

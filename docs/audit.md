@@ -1,6 +1,6 @@
 # Audit activity and administration
 
-The Audit page (`/audit`) provides a read-only, newest-first activity log with user and action filters and 50-event cursor paging. Opening, filtering, and paging the log are themselves audited. The top navigation is Patients, Reports | Settings, Audit | signed-in user.
+The Audit page (`/audit`) provides a read-only, newest-first activity log with user and action filters and 50-event cursor paging. Opening, filtering, and paging the log are themselves audited. The top navigation includes Patients, Reports, Census, My lists, Settings, Audit, and the signed-in user.
 
 ## Administrator setup
 
@@ -21,13 +21,14 @@ Each event stores a sequence ID, UTC timestamp, server-resolved Windows username
 | Settings | Attempt and completion/failure; attempted changes include before/after values. Connection URL values are omitted to avoid retaining credentials or tokens. Administrator changes are included. Logo uploads/removal are recorded without file content. |
 | Printing | The application Print button records a request before opening the dialog. Browser print-dialog observations are separate. Neither event proves that paper was printed or a PDF was saved. |
 | Audit review and denied admin access | Server-side events. |
+| Saved patient lists | Creation, rename, deletion, patient addition, and removal commit with their audit events in one SQLite transaction. Events identify the list and affected patient references without storing list names. Lists are private to the authenticated account and FHIR server. |
 | Other interface actions | Delegated click/change/submit/toggle observations, labeled `Client-observed`, with control labels/IDs and current page. No typed values, rendered text, clipboard contents, passwords, or clinical document bodies are collected. |
 
 Browser observations are supplemental and untrusted: extensions, disabled JavaScript, disconnects, or a modified client can omit or falsify them. They are not evidence of server authorization or successful completion. Page/section visibility does not prove a person read the content. OS actions, screenshots, browser copy/save, and authentication rejected by IIS/AD before reaching the app require host-level controls/logs. This implementation is not a keylogger or a guarantee to observe every possible user action.
 
 ## Storage and failure behavior
 
-The database is `<content root>/App_Data/audit.sqlite`, outside the web root. It is created on startup, uses SQLite WAL and FULL synchronous commits, parameterized SQL, a 30-second busy timeout, and UPDATE/DELETE rejection triggers. There is no edit/delete UI, purge job, or automatic expiry. Protect the `.sqlite`, `-wal`, and `-shm` files. Use SQLite's online backup API or stop the application cleanly before taking a consistent filesystem backup; copying the database alone while WAL is active can omit recent events.
+The database is `<content root>/App_Data/audit.sqlite`, outside the web root. It is created on startup and uses SQLite WAL and FULL synchronous commits, parameterized SQL, a 30-second busy timeout, and UPDATE/DELETE rejection triggers on audit events. There is no audit edit/delete UI, purge job, or automatic expiry. Private patient-list tables share this database and support owner-authorized edits and deletion. Protect the `.sqlite`, `-wal`, and `-shm` files. Use SQLite's online backup API or stop the application cleanly before taking a consistent filesystem backup; copying the database alone while WAL is active can omit recent events.
 
 Server audit writes are awaited. An initial write failure prevents the protected FHIR request, settings mutation, audit read, or Print button action. If a completion write fails after an external read or settings save, that work may already have occurred; the error propagates and the persisted attempt remains. Browser observation failures display an alert but cannot undo an action the browser already performed. An unavailable audit store prevents normal startup/request handling instead of silently switching to memory.
 
