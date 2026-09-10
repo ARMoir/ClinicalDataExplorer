@@ -16,6 +16,12 @@ The main page uses standard FHIR searches:
 
 Encounter Bundle pagination links are followed automatically, while paging is restricted to the configured FHIR server.
 
+## Census
+
+Open **Census** next to Reports (`/census`) to see all locations and their current encounters, with links to encounter and patient reports. Locations are ordered by their newest current encounter start date, and encounters within each location are newest first. Undated encounters follow dated encounters; empty locations appear last, with alphabetical ordering for ties. Encounters without a current assignment appear under **No current location recorded**. Refresh reloads the census and updates its displayed load time. The previous `/location-census` address remains available.
+
+The census searches `Location` and `Encounter?status=arrived,triaged,in-progress,onleave&_include=Encounter:patient`, following all pages within the existing safety limits. Future and ended encounter periods are excluded. Location assignments must be active (or have no status) and within their recorded period. Completed, planned and reserved assignments are excluded. Encounters with multiple current assignments appear in each location; the overall encounter count is distinct. Search failures are displayed as errors rather than an empty or partial census.
+
 ## Run
 
 ```powershell

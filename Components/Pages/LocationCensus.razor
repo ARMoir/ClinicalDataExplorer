@@ -1,0 +1,83 @@
+@namespace ClinicalDataExplorer.Components.Pages
+@page "/location-census"
+@page "/census"
+@implements IDisposable
+@inject FhirService FhirService
+@inject ApplicationSettingsService SettingsService
+
+<PageTitle>@($"{SettingsService.Current.ProductName} - Census")</PageTitle>
+<div class="page-header">
+    <div><h1>Census</h1><p>Current encounters and patients by location, ordered by newest encounter start date. Encounters within each location are newest first.</p></div>
+    <button data-audit="LocationCensus:Refresh" class="secondary-button" @onclick="LoadAsync" disabled="@Busy">Refresh census</button>
+</div>
+<p>Includes arrived, triaged, in-progress and on-leave encounters whose period has not ended. Only current location assignments are shown. An encounter may appear at more than one location.</p>
+@if (Busy)
+{
+    <div class="empty-state" role="status">Loading census…</div>
+}
+else if (Error is not null)
+{
+    <div class="error-card" role="alert">@Error</div>
+}
+else
+{
+    <p role="status">@Groups.Count locations / groups · @Groups.SelectMany(g => g.Encounters).Select(r => r.Encounter.Id).Distinct().Count() current encounters · Loaded @LoadedAt?.ToLocalTime().ToString("g")</p>
+    @if (Groups.Count == 0) { <div class="empty-state">No locations or current encounters were returned.</div> }
+    @foreach (var group in Groups)
+    {
+        <section class="viewer-card census-location" @key="group.Key">
+            <h2>@group.Name</h2>
+            <p>@group.Key · @(group.Status ?? "Status not supplied") · @group.Encounters.Count current encounters</p>
+            @if (group.Encounters.Count == 0) { <p>No current encounters at this location.</p> }
+            else
+            {
+                <div class="table-wrap">
+                    <table class="results-table">
+                        <caption class="sr-only">Current encounters at @group.Name</caption>
+                        <thead><tr><th scope="col">Encounter</th><th scope="col">Patient</th><th scope="col">Status</th><th scope="col">Started</th></tr></thead>
+                        <tbody>
+                            @foreach (var row in group.Encounters)
+                            {
+                                <tr>
+                                    <td><a href="@("/encounter/" + Uri.EscapeDataString(row.Encounter.Id))">@row.Encounter.Id</a><div>@row.Encounter.Type</div><small>@string.Join(" · ", row.Encounter.Identifiers)</small></td>
+                                    <td>
+                                        @if (row.PatientId is not null) { <a href="@("/patient/" + Uri.EscapeDataString(row.PatientId))">@row.PatientDisplay</a> }
+                                        else { <span>@row.PatientDisplay</span> }
+                                        @if (row.Patient is { } patient) { <div>@string.Join(" · ", patient.Identifiers)</div><small>Born: @(patient.BirthDate ?? "Not recorded")</small> }
+                                        else { <div>Patient details unavailable</div> }
+                                    </td>
+                                    <td>@row.Encounter.Status</td>
+                                    <td>@(row.Encounter.Start?.ToLocalTime().ToString("g") ?? "Not recorded")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    }
+}
+
+@code {
+    private readonly CancellationTokenSource Lifetime = new();
+    private IReadOnlyList<LocationCensusGroup> Groups = [];
+    private bool Busy;
+    private string? Error;
+    private DateTimeOffset? LoadedAt;
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private async Task LoadAsync()
+    {
+        Busy = true;
+        Error = null;
+        Groups = [];
+        try
+        {
+            Groups = await FhirService.GetLocationCensusAsync(Lifetime.Token);
+            LoadedAt = DateTimeOffset.Now;
+        }
+        catch (OperationCanceledException) when (Lifetime.IsCancellationRequested) { }
+        catch (Exception ex) { Error = "Unable to load the census. " + ex.Message; }
+        finally { Busy = false; }
+    }
+    public void Dispose() { Lifetime.Cancel(); Lifetime.Dispose(); }
+}
