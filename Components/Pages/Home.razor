@@ -34,7 +34,7 @@
     </section>
     @if (ErrorMessage is not null) { <div class="error-card" role="alert">@ErrorMessage <button data-audit="Home:RetrySearch" class="secondary-button" @onclick="RetryAsync" disabled="@Busy">Retry</button></div> }
     <section class="patient-list-card directory-results" aria-busy="@(Busy ? "true" : "false")">
-        <div class="card-heading-row"><div><h2>@(IsSearch ? "Search results" : "Recent patients")</h2><span>@ListDescription</span></div><span>10 per page</span></div>
+        <div class="card-heading-row"><div><h2>@(IsSearch ? "Search results" : "Recent patients")</h2><span>@ListDescription</span></div><span>5 per page</span></div>
         @if (Busy) { <div class="empty-state" role="status">Loading patients…</div> }
         else if (CurrentPatients.Count == 0 && ErrorMessage is null) { <div class="empty-state">No matching patients were returned.</div> }
         else
@@ -51,7 +51,7 @@
                             <div><dt>Phone</dt><dd>@Display(patient.Phone)</dd></div><div><dt>@(IsSearch ? "Last updated" : "Latest encounter")</dt><dd>@((IsSearch ? patient.LastUpdated : patient.MostRecentEncounter)?.ToLocalTime().ToString("MMM d, yyyy") ?? "Not recorded")</dd></div>
                             <div class="directory-address"><dt>Address</dt><dd>@Display(patient.Address)</dd></div><div><dt>Email</dt><dd>@Display(patient.Email)</dd></div><div><dt>Record ID</dt><dd>@patient.Id</dd></div>
                         </dl>
-                        <ProviderList Providers="patient.Practitioners" Error="@patient.PractitionerLookupError" />
+                        <ProviderList Providers="patient.Practitioners" Error="@patient.PractitionerLookupError" Incomplete="@(patient.PractitionerStatus == PractitionerAssociationStatus.Incomplete)" />
                         <a class="patient-open" href="@($"/patient/{Uri.EscapeDataString(patient.Id)}")">Open patient report →</a>
                     </article>
                 }
@@ -110,13 +110,13 @@
     {
         var patients = new List<PatientSummary>();
         if (Lookahead is not null) { patients.Add(Lookahead); Lookahead = null; }
-        while (patients.Count < 10 && await Iterator!.MoveNextAsync()) patients.Add(Iterator.Current);
-        HasMore = patients.Count == 10 && await Iterator!.MoveNextAsync();
+        while (patients.Count < 5 && await Iterator!.MoveNextAsync()) patients.Add(Iterator.Current);
+        HasMore = patients.Count == 5 && await Iterator!.MoveNextAsync();
         if (HasMore) Lookahead = Iterator!.Current;
         // Bound concurrent full-record requests; enrich only the visible page,
         // not the lookahead patient or the rest of the search result set.
         var enriched = new List<PatientSummary>();
-        foreach (var batch in patients.Chunk(3))
+        foreach (var batch in patients.Chunk(5))
             enriched.AddRange(await Task.WhenAll(batch.Select(p => IsSearch
                 ? FhirService.AddPatientPractitionersAsync(p, Cancellation.Token)
                 : FhirService.AddRecentPatientPractitionersAsync(p, Cancellation.Token))));

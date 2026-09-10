@@ -1,7 +1,7 @@
 @namespace ClinicalDataExplorer.Components
                         <div class="patient-providers">
                             <strong class="patient-providers-label">Associated providers:</strong>
-                            @if (Error is not null) { <p class="provider-lookup-error">@Error</p> }
+                            @if (Error is not null) { <p class="@(Incomplete ? "provider-lookup-warning" : "provider-lookup-error")" role="status">@Error</p> }
                             @if (Providers.Count == 0 && Error is null) { <span>No practitioner references returned.</span> }
                             @if (Providers.Count > 0)
                             {
@@ -31,5 +31,6 @@
 
 @code {
     [Parameter] public IReadOnlyList<PractitionerAssociation> Providers { get; set; } = [];
+    [Parameter] public bool Incomplete { get; set; }
     [Parameter] public string? Error { get; set; }
 }

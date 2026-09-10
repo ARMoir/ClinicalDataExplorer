@@ -1,6 +1,6 @@
 @namespace ClinicalDataExplorer.Components.Pages
 @page "/patient/{PatientId}"
-@implements IDisposable
+@implements IAsyncDisposable
 @inject FhirService FhirService
 @inject XsltService XsltService
 @inject ApplicationSettingsService SettingsService
@@ -12,16 +12,21 @@
 @if (Loading) { <div class="empty-state" role="status">Loading demographics…</div> }
 @if (PatientError is not null) { <div class="error-card" role="alert">@PatientError</div> }
 @((MarkupString)PatientHtml)
-@if (LoadingResources) { <div class="empty-state" role="status">Loading patient records and counting record categories across all pages…</div> }
-else if (ResourceError is not null)
+@if (LoadingResources) { <div class="empty-state patient-loading" role="status"><span class="loading-spinner" aria-hidden="true"></span><span>Loading patient records… @Sections.Sum(s => s.Count) records found so far. You can explore the sections below while loading continues.</span></div> }
+@if (ResourceError is not null)
 {
-    <div class="error-card" role="alert"><strong>Patient record counts unavailable</strong><p>@ResourceError</p><p>The connected server could not supply the complete patient record. Counts are unavailable until the connection supports this request.</p><button data-audit="PatientReport:RetryReport" class="secondary-button" @onclick="ReloadAsync">Retry report</button></div>
+    <div class="error-card" role="alert"><strong>Patient records could not finish loading</strong><p>@ResourceError</p><p>Any records shown below are incomplete. Counts only reflect records received so far.</p><button data-audit="PatientReport:RetryReport" class="secondary-button" @onclick="ReloadAsync">Retry report</button></div>
 }
-else if (PatientError is null)
+@if (PatientError is null && (!LoadingResources || Sections.Count > 0))
 {
     <section class="report-customization search-card">
-        <div class="card-heading-row"><div><h2>Patient records</h2><span>@Sections.Sum(s => s.Count) records across @Sections.Count(s => s.Count > 0) categories</span></div></div>
-        <p>Counts reflect records returned by the server for this patient, including linked supporting records. Expand a section to explore its fields.</p>
+        <div class="card-heading-row"><div><h2>Patient records</h2><span>@Sections.Sum(s => s.Count) records across @Sections.Count(s => s.Count > 0) categories@(LoadingResources || HasMoreResources || ResourceError is not null ? " · partial results" : "")</span></div></div>
+        <p>Initially, up to 50 records are available per section. Counts reflect records available so far, including linked supporting records.</p>
+        @if (HasMoreResources && !LoadingResources && ResourceError is null)
+        {
+            <p role="status">Loading paused. More records or categories may remain on the server.</p>
+            <button class="secondary-button" data-audit="PatientReport:ContinueDiscovery" @onclick="() => LoadMoreAsync(null)">Find more categories and records</button>
+        }
         <div class="report-controls">
             <label for="resource-filter">Find a section <input data-audit="PatientReport:SectionFilter" id="resource-filter" @bind="Filter" @bind:event="oninput" placeholder="e.g. visits or medications" /></label>
             <label><input data-audit="PatientReport:ShowEmptySections" type="checkbox" @bind="ShowEmpty" /> Show types with no returned records</label>
@@ -39,6 +44,10 @@ else if (PatientError is null)
                 {
                     @((MarkupString)(section.Html ?? ""))
                     <nav class="pagination" aria-label="@($"{section.Label} pages")"><button data-audit="PatientReport:PreviousSectionPage" class="secondary-button" disabled="@(section.Page == 0)" @onclick="() => ChangePage(section, -1)">← Previous</button><span>Records @(section.Page * 10 + 1)–@Math.Min((section.Page + 1) * 10, section.Count) of @(section.Count)</span><button data-audit="PatientReport:NextSectionPage" class="secondary-button" disabled="@((section.Page + 1) * 10 >= section.Count)" @onclick="() => ChangePage(section, 1)">Next →</button></nav>
+                    @if (section.HasBufferedRecords || (HasMoreResources && ResourceError is null))
+                    {
+                        <button class="secondary-button" data-audit="PatientReport:LoadMoreSection" disabled="@LoadingResources" aria-label="@($"Load more {section.Label} records")" @onclick="() => LoadMoreAsync(section)">Load more (up to 50)</button>
+                    }
                 }
             </div>
         </section>
@@ -53,6 +62,8 @@ else if (PatientError is null)
     private string? PatientError, ResourceError;
     private bool Loading = true, LoadingResources = true, ShowEmpty;
     private IReadOnlyList<PatientResourceSection> Sections = [];
+    private IAsyncEnumerator<(IReadOnlyList<PatientResourceSection> Sections, bool HasMore)>? ResourcePages;
+    private bool HasMoreResources;
     private readonly HashSet<string> Hidden = new(StringComparer.Ordinal);
     private IEnumerable<PatientResourceSection> VisibleSections => Sections.Where(s => !Hidden.Contains(s.ResourceType) && (ShowEmpty || s.Count > 0) && (s.Label.Contains(Filter, StringComparison.OrdinalIgnoreCase) || s.ResourceType.Contains(Filter, StringComparison.OrdinalIgnoreCase)));
     // R4 patient compartment catalog; any additional type returned by $everything is included dynamically.
@@ -61,6 +72,8 @@ else if (PatientError is null)
     private async Task ReloadAsync()
     {
         Request?.Cancel(); Request?.Dispose();
+        if (!LoadingResources && ResourcePages is not null) await ResourcePages.DisposeAsync();
+        ResourcePages = null; HasMoreResources = false;
         var request = Request = new CancellationTokenSource();
         var token = request.Token;
         Loading = true; LoadingResources = true; PatientError = null; ResourceError = null; PatientHtml = ""; Sections = []; Hidden.Clear();
@@ -73,13 +86,9 @@ else if (PatientError is null)
             StateHasChanged();
             try
             {
-                var sections = (await FhirService.GetPatientResourceSectionsAsync(PatientId, token)).ToList();
-                if (token.IsCancellationRequested) return;
-                foreach (var type in PatientTypes.Split(' '))
-                    if (!sections.Any(s => s.ResourceType == type)) sections.Add(new(type, []));
-                Sections = sections.OrderByDescending(s => s.Count > 0)
-                    .ThenBy(s => ResourcePresentation.PatientSectionOrder(s.ResourceType))
-                    .ThenBy(s => s.Label, StringComparer.Ordinal).ToList();
+                ResourcePages = FhirService.StreamPatientResourceSectionsAsync(PatientId, token).GetAsyncEnumerator(token);
+                HasMoreResources = true;
+                await ReadMoreAsync(token);
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { }
             catch (Exception ex) { if (!token.IsCancellationRequested) ResourceError = ex.Message; }
@@ -88,6 +97,62 @@ else if (PatientError is null)
         catch (Exception ex) { if (!token.IsCancellationRequested) PatientError = ex.Message; }
         finally { if (!token.IsCancellationRequested) { Loading = false; LoadingResources = false; } }
     }
+    private void UpdateSections(IReadOnlyList<PatientResourceSection> incoming, bool complete)
+    {
+        var previous = Sections.ToDictionary(s => s.ResourceType);
+        var sections = incoming.ToList();
+        if (complete)
+            foreach (var type in PatientTypes.Split(' '))
+                if (!sections.Any(s => s.ResourceType == type)) sections.Add(new(type, []));
+        foreach (var section in sections)
+        {
+            section.Limit = previous.TryGetValue(section.ResourceType, out var existing) ? existing.Limit : 50;
+            if (!previous.TryGetValue(section.ResourceType, out var old)) continue;
+            section.Expanded = old.Expanded;
+            section.Page = Math.Min(old.Page, Math.Max(0, (section.Count - 1) / 10));
+            if (section.Expanded) Render(section);
+        }
+        Sections = sections.OrderByDescending(s => s.Count > 0)
+            .ThenBy(s => ResourcePresentation.PatientSectionOrder(s.ResourceType))
+            .ThenBy(s => s.Label, StringComparer.Ordinal).ToList();
+    }
+    private async Task ReadMoreAsync(CancellationToken token, string? resourceType = null)
+    {
+        var pages = ResourcePages!;
+        try
+        {
+            while (HasMoreResources && await pages.MoveNextAsync())
+            {
+                if (token.IsCancellationRequested) return;
+                HasMoreResources = pages.Current.HasMore;
+                UpdateSections(pages.Current.Sections, complete: !HasMoreResources);
+                StateHasChanged();
+                if (resourceType is null ? Sections.Any(s => s.Count >= s.Limit)
+                    : Sections.Any(s => s.ResourceType == resourceType && s.Count >= s.Limit)) break;
+            }
+        }
+        finally { if (token.IsCancellationRequested || !HasMoreResources) await pages.DisposeAsync(); }
+    }
+    private async Task LoadMoreAsync(PatientResourceSection? section)
+    {
+        if (LoadingResources || Request is null) return;
+        var token = Request.Token;
+        LoadingResources = true;
+        try
+        {
+            await AuditSectionAsync("SectionLoadMore", section?.ResourceType ?? "Discover categories");
+            if (section is not null)
+            {
+                section.Limit += 50;
+                if (section.Expanded) Render(section);
+                if (section.Count >= section.Limit || !HasMoreResources || ResourceError is not null) return;
+            }
+            await ReadMoreAsync(token, section?.ResourceType);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception ex) { if (!token.IsCancellationRequested) { ResourceError = ex.Message; HasMoreResources = false; } }
+        finally { if (!token.IsCancellationRequested) LoadingResources = false; }
+    }
     private void Render(PatientResourceSection section) => section.Html = XsltService.Transform("PatientResources", section.PageXml(), SettingsService.Current, new Dictionary<string, string> { ["resourceLabel"] = section.Label });
     private Task AuditSectionAsync(string action, string details) => Activity.RecordAsync(action, "Patient/" + PatientId, "Requested", details);
     private async Task Toggle(PatientResourceSection section) { await AuditSectionAsync("SectionToggle", section.ResourceType + "; expanded=" + !section.Expanded); section.Expanded = !section.Expanded; if (section.Expanded && section.Html is null) Render(section); }
@@ -95,5 +160,10 @@ else if (PatientError is null)
     private async Task ExpandVisible() { await AuditSectionAsync("SectionsExpand", string.Join(", ", VisibleSections.Select(s => s.ResourceType))); foreach (var section in VisibleSections.Where(s => s.Count > 0)) { section.Expanded = true; if (section.Html is null) Render(section); } }
     private async Task CollapseAll() { await AuditSectionAsync("SectionsCollapse", "All"); foreach (var section in Sections) section.Expanded = false; }
     private async Task ToggleVisibility(PatientResourceSection section) { await AuditSectionAsync("SectionVisibility", section.ResourceType + "; hidden=" + !Hidden.Contains(section.ResourceType)); if (!Hidden.Add(section.ResourceType)) Hidden.Remove(section.ResourceType); }
-    public void Dispose() { Request?.Cancel(); Request?.Dispose(); }
+    public async ValueTask DisposeAsync()
+    {
+        Request?.Cancel();
+        if (!LoadingResources && ResourcePages is not null) await ResourcePages.DisposeAsync();
+        Request?.Dispose();
+    }
 }

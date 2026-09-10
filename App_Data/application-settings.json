@@ -1,9 +1,11 @@
 {
   "ProductName": "Clinical Data Explorer",
   "FacilityName": "Reports",
-  "FhirBaseUrl": "https://hapi.fhir.org/baseR4/",
+  "FhirBaseUrl": "https://server.fire.ly/",
   "AuthenticationMode": "Windows",
   "WindowsDomain": "",
+  "AllUsersAreAdministrators": true,
+  "AdministratorUsers": "",
   "LogoPath": "/uploads/facility-logo-20260904152646666.png",
   "PrimaryColor": "#113B75",
   "SecondaryColor": "#006443"

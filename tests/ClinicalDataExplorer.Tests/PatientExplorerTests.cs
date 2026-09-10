@@ -132,6 +132,80 @@ public sealed class PatientExplorerTests
         await Assert.ThrowsAsync<HttpRequestException>(() => context.Service.GetPatientResourceSectionsAsync("p1"));
     }
 
+    [Fact]
+    public async Task Patient_section_stream_waits_for_load_more_and_deduplicates_repeated_records()
+    {
+        var records = string.Concat(Enumerable.Range(1, 50).Select(i => Entry($"<Observation><id value='o{i}'/></Observation>")));
+        using var handler = new ScriptedHandler(request =>
+        {
+            Assert.Contains("_count=50", request.RequestUri!.Query);
+            return ScriptedHandler.Xml(Bundle(records, "Patient/p1/$everything?cursor=2"));
+        }, _ => ScriptedHandler.Xml(Bundle(Entry("<Observation><id value='o50'/></Observation>") + Entry("<Observation><id value='o51'/></Observation>"))));
+        using var context = new FhirTestContext(BaseUrl, handler);
+        await using var pages = context.Service.StreamPatientResourceSectionsAsync("p1").GetAsyncEnumerator();
+        Assert.True(await pages.MoveNextAsync());
+        Assert.True(pages.Current.HasMore);
+        Assert.Equal(50, Assert.Single(pages.Current.Sections).Count);
+        Assert.Equal(1, handler.Calls);
+        Assert.True(await pages.MoveNextAsync());
+        Assert.False(pages.Current.HasMore);
+        Assert.Equal(51, Assert.Single(pages.Current.Sections).Count);
+        Assert.Equal(2, handler.Calls);
+        Assert.False(await pages.MoveNextAsync());
+    }
+
+    [Fact]
+    public void Section_limit_keeps_buffered_records_until_more_is_requested()
+    {
+        XNamespace f = "http://hl7.org/fhir";
+        var records = Enumerable.Range(1, 75).Select(i => new XElement(f + "Observation", new XElement(f + "id", new XAttribute("value", $"o{i}")))).ToList();
+        var section = new PatientResourceSection("Observation", records) { Limit = 50, Page = 5 };
+        Assert.Equal(50, section.Count);
+        Assert.True(section.HasBufferedRecords);
+        Assert.Empty(XDocument.Parse(section.PageXml()).Descendants(f + "Observation"));
+        section.Limit += 50;
+        Assert.Equal(75, section.Count);
+        Assert.False(section.HasBufferedRecords);
+        Assert.Equal(10, XDocument.Parse(section.PageXml()).Descendants(f + "Observation").Count());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Everything_publishes_partial_records_before_requesting_next_page(bool nextPageFails)
+    {
+        var snapshots = new List<IReadOnlyList<PatientResourceSection>>();
+        using var handler = new ScriptedHandler(
+            _ => ScriptedHandler.Xml(Bundle(Entry(Patient(1)), "Patient/p1/$everything?cursor=2")),
+            _ =>
+            {
+                Assert.Single(snapshots);
+                Assert.Equal("Patient", Assert.Single(snapshots[0]).ResourceType);
+                return nextPageFails
+                    ? ScriptedHandler.Xml("<OperationOutcome xmlns='http://hl7.org/fhir'/>", HttpStatusCode.InternalServerError)
+                    : ScriptedHandler.Xml(Bundle(Entry(Patient(1)) + Entry("<Observation><id value='o1'/></Observation>")));
+            });
+        using var context = new FhirTestContext(BaseUrl, handler);
+        var load = context.Service.GetPatientResourceSectionsAsync("p1", onProgress: sections =>
+        {
+            snapshots.Add(sections);
+            return Task.CompletedTask;
+        });
+        if (nextPageFails)
+        {
+            await Assert.ThrowsAsync<HttpRequestException>(() => load);
+            Assert.Single(snapshots);
+        }
+        else
+        {
+            var result = await load;
+            Assert.Equal(2, snapshots.Count);
+            Assert.Equal(2, result.Sum(s => s.Count));
+            Assert.Equal(2, snapshots[1].Sum(s => s.Count));
+        }
+        Assert.Equal(1, snapshots[0].Sum(s => s.Count));
+    }
+
     [Theory]
     [InlineData(@"\n")]
     [InlineData("&#10;")]

@@ -1,4 +1,9 @@
 namespace ClinicalDataExplorer.Models;
 
 public sealed record RecentReportItem(string Id, string Title, string Description, DateTimeOffset? Date,
-    string Url, IReadOnlyList<PractitionerAssociation> Providers, PractitionerAssociationStatus ProviderStatus, string? ProviderError);
+    string Url, IReadOnlyList<PractitionerAssociation> Providers, PractitionerAssociationStatus ProviderStatus, string? ProviderError)
+{
+    public PatientSummary? Patient { get; init; }
+    public string? PatientUrl { get; init; }
+    public string? PatientError { get; init; }
+}

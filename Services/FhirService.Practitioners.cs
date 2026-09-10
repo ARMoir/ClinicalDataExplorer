@@ -6,12 +6,15 @@ namespace ClinicalDataExplorer.Services;
 public sealed partial class FhirService
 {
     private static readonly XNamespace Presentation = "urn:clinical-data-explorer:presentation";
-    private static readonly TimeSpan RecentPatientBudget = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan RecentPatientBudget = TimeSpan.FromSeconds(5);
 
     public async Task<PatientSummary> AddRecentPatientPractitionersAsync(PatientSummary patient,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        var found = new System.Collections.Concurrent.ConcurrentDictionary<string, PractitionerAssociation>(StringComparer.Ordinal);
+        void Remember(PractitionerAssociation provider) => found.AddOrUpdate(provider.Reference, provider,
+            (_, previous) => previous.IsResolved && !provider.IsResolved ? previous : provider);
         var remaining = RecentPatientBudget - patient.RecentLookupDuration;
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         if (remaining > TimeSpan.Zero)
@@ -19,15 +22,48 @@ public sealed partial class FhirService
             budget.CancelAfter(remaining);
             try
             {
-                return await AddPatientPractitionersAsync(patient, budget.Token).WaitAsync(budget.Token);
+                return await LoadRecentProvidersAsync().WaitAsync(budget.Token);
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && budget.IsCancellationRequested) { }
         }
         return patient with
         {
-            PractitionerStatus = PractitionerAssociationStatus.Unavailable,
-            PractitionerLookupError = "Provider loading exceeded the 2-second recent-patient limit. Search for this patient specifically to wait for the full record."
+            Practitioners = ConsolidatePractitioners(found.Values.ToList()),
+            PractitionerStatus = PractitionerAssociationStatus.Incomplete,
+            PractitionerLookupError = "Loading stopped after 5 seconds. There may be more providers. Search for this patient specifically to wait for the full record."
         };
+
+        async Task<PatientSummary> LoadRecentProvidersAsync()
+        {
+            try
+            {
+                var baseUri = GetBaseUri();
+                var uri = new Uri(baseUri, "Patient/" + Uri.EscapeDataString(RequireId(patient.Id, "patient")) +
+                    "/$everything?_count=100&_format=xml");
+                var xml = await GetAllBundlePagesAsync(uri, baseUri, budget.Token, async document =>
+                {
+                    // Publish providers already included before waiting for another page or reference.
+                    await ResolvePractitionerReferencesAsync(document, budget.Token, Remember, fetchMissing: false);
+                });
+                var providers = await ResolvePractitionerReferencesAsync(ParseDocument(xml), budget.Token, Remember);
+                var incomplete = providers.Any(p => !p.IsResolved);
+                return patient with
+                {
+                    Practitioners = ConsolidatePractitioners(providers),
+                    PractitionerStatus = incomplete ? PractitionerAssociationStatus.Incomplete : PractitionerAssociationStatus.Complete,
+                    PractitionerLookupError = incomplete ? "Some provider references could not be resolved. There may be more providers." : null
+                };
+            }
+            catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or System.Xml.XmlException)
+            {
+                return patient with
+                {
+                    Practitioners = ConsolidatePractitioners(found.Values.ToList()),
+                    PractitionerStatus = PractitionerAssociationStatus.Unavailable,
+                    PractitionerLookupError = "Provider associations unavailable. " + ex.Message
+                };
+            }
+        }
     }
 
     private async Task<string> AddPractitionerPresentationAsync(string xml, CancellationToken cancellationToken)
@@ -102,7 +138,8 @@ public sealed partial class FhirService
     }
 
     private async Task<IReadOnlyList<PractitionerAssociation>> ResolvePractitionerReferencesAsync(
-        XDocument document, CancellationToken cancellationToken)
+        XDocument document, CancellationToken cancellationToken,
+        Action<PractitionerAssociation>? onProvider = null, bool fetchMissing = true)
     {
         var baseUri = GetBaseUri();
         var resources = document.Root!.Name == Fhir + "Bundle" ? document.Root.Elements(Fhir + "entry")
@@ -154,6 +191,7 @@ public sealed partial class FhirService
             var sources = associations.TryGetValue(key, out var existing)
                 ? existing.Sources.Append(source).Distinct(StringComparer.Ordinal).ToList() : [source];
             associations[key] = new(key, name, identifiers, sources, resolved);
+            onProvider?.Invoke(associations[key]);
             var identifierText = string.Join("; ", identifiers.Select(i =>
                 (i.Label.Length > 0 ? i.Label + ": " : "") + i.Value + (i.System.Length > 0 ? " [" + i.System + "]" : "")));
             // Presentation metadata leaves original FHIR reference/display fields intact.
@@ -178,6 +216,7 @@ public sealed partial class FhirService
             if (!IsWithinConfiguredServer(uri, baseUri)) return (type, raw, null);
             var key = type + "/" + segments[index + 1];
             if (included.TryGetValue(key, out var local)) return (type, key, local);
+            if (!fetchMissing) return (type, key, null);
             if (!fetched.TryGetValue(key, out var found))
             {
                 found = null;

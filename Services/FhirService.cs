@@ -170,13 +170,20 @@ public sealed partial class FhirService(
     // $everything includes both patient-compartment records and supporting resources
     // such as Medication, Practitioner, Organization, Device and Binary.
     public async Task<IReadOnlyList<PatientResourceSection>> GetPatientResourceSectionsAsync(string patientId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Func<IReadOnlyList<PatientResourceSection>, Task>? onProgress = null)
     {
-        var xml = await GetAllBundlePagesAsync("Patient/" + Uri.EscapeDataString(RequireId(patientId, "patient")) +
-            "/$everything?_count=100&_format=xml", cancellationToken);
+        var baseUri = GetBaseUri();
+        var uri = new Uri(baseUri, "Patient/" + Uri.EscapeDataString(RequireId(patientId, "patient")) +
+            "/$everything?_count=100&_format=xml");
+        var xml = await GetAllBundlePagesAsync(uri, baseUri, cancellationToken,
+            onProgress is null ? null : document => onProgress(BuildSections(document)));
         var document = ParseDocument(xml);
         await ResolvePractitionerReferencesAsync(document, cancellationToken);
-        return DiagnosticReportConsolidation.Consolidate(document, GetBaseUri())
+        return BuildSections(document);
+
+        IReadOnlyList<PatientResourceSection> BuildSections(XDocument document) =>
+            DiagnosticReportConsolidation.Consolidate(document, baseUri)
             .GroupBy(r => DiagnosticReportConsolidation.IsMovedObservation(r)
                     ? "DiagnosticReport" : r.Name.LocalName).OrderBy(g => g.Key, StringComparer.Ordinal)
             .Select(g => new PatientResourceSection(g.Key, g.Select(r => new XElement(r)).ToList())).ToList();
@@ -324,7 +331,8 @@ public sealed partial class FhirService(
         return await GetAllBundlePagesAsync(new Uri(baseUri, relativeUrl), baseUri, cancellationToken);
     }
 
-    private async Task<string> GetAllBundlePagesAsync(Uri requestUri, Uri baseUri, CancellationToken cancellationToken)
+    private async Task<string> GetAllBundlePagesAsync(Uri requestUri, Uri baseUri, CancellationToken cancellationToken,
+        Func<XDocument, Task>? onPage = null)
     {
         Uri? nextUri = requestUri;
         var combined = new XElement(Fhir + "Bundle",
@@ -357,6 +365,7 @@ public sealed partial class FhirService(
                 if (mode != "include" && mode != "outcome" && resource?.Name != Fhir + "OperationOutcome")
                     count++;
             }
+            if (onPage is not null) await onPage(new XDocument(new XElement(combined)));
             nextUri = GetNextPageUri(document, baseUri);
         }
 

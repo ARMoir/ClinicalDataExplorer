@@ -26,10 +26,10 @@ public sealed class RecentPatientTimeoutTests
         var watch = Stopwatch.StartNew();
         var results = new List<RecentReportItem>();
         await foreach (var item in context.Service.StreamRecentReportsAsync(false)) results.Add(item);
-        Assert.InRange(watch.Elapsed.TotalSeconds, 1.8, 4);
+        Assert.InRange(watch.Elapsed.TotalSeconds, 4.8, 7);
         Assert.Equal(new[] { "p1", "p2" }, results.Select(p => p.Id));
-        Assert.Equal(PractitionerAssociationStatus.Unavailable, results[0].ProviderStatus);
-        Assert.Contains("2-second", results[0].ProviderError);
+        Assert.Equal(PractitionerAssociationStatus.Incomplete, results[0].ProviderStatus);
+        Assert.Contains("5 seconds", results[0].ProviderError);
         Assert.Equal(PractitionerAssociationStatus.Complete, results[1].ProviderStatus);
     }
 
@@ -58,24 +58,24 @@ public sealed class RecentPatientTimeoutTests
             if (path.EndsWith("Encounter")) return ScriptedHandler.Xml(Bundle(Encounter("p1")));
             if (path.EndsWith("/p1"))
             {
-                await Task.Delay(1200, token);
+                await Task.Delay(3000, token);
                 return ScriptedHandler.Xml("<Patient xmlns='http://hl7.org/fhir'><id value='p1'/></Patient>");
             }
-            await Task.Delay(1200, token);
+            await Task.Delay(3000, token);
             return ScriptedHandler.Xml(Bundle(""));
         });
         using var context = new FhirTestContext(BaseUrl, handler);
         var results = new List<RecentReportItem>();
         await foreach (var item in context.Service.StreamRecentReportsAsync(false)) results.Add(item);
-        Assert.Equal(PractitionerAssociationStatus.Unavailable, Assert.Single(results).ProviderStatus);
+        Assert.Equal(PractitionerAssociationStatus.Incomplete, Assert.Single(results).ProviderStatus);
     }
 
     [Fact]
-    public async Task Specific_search_and_provider_loading_can_each_exceed_two_seconds()
+    public async Task Specific_search_and_provider_loading_can_each_exceed_five_seconds()
     {
         using var handler = new AsyncHandler(async (_, token) =>
         {
-            await Task.Delay(2200, token);
+            await Task.Delay(5200, token);
             return ScriptedHandler.Xml(Bundle(Entry(Patient)));
         });
         using var context = new FhirTestContext(BaseUrl, handler);
@@ -99,6 +99,33 @@ public sealed class RecentPatientTimeoutTests
         var patient = new PatientSummary("p1", "Test", [], null, null, null, null, null);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             context.Service.AddRecentPatientPractitionersAsync(patient, cancellation.Token));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Timeout_retains_providers_from_completed_pages_and_reference_lookups(bool stalledPage)
+    {
+        const string doctor = "<Practitioner><id value='doctor'/><name><text value='Dr Found'/></name><identifier><value value='staff1'/></identifier></Practitioner>";
+        var patientXml = "<Patient><id value='p1'/><generalPractitioner><reference value='Practitioner/doctor'/></generalPractitioner><generalPractitioner><reference value='Practitioner/slow'/></generalPractitioner></Patient>";
+        using var handler = new AsyncHandler(async (request, token) =>
+        {
+            if (request.RequestUri!.AbsolutePath.EndsWith("$everything") && !request.RequestUri.Query.Contains("cursor"))
+                return ScriptedHandler.Xml(Bundle(Entry(patientXml) + (stalledPage ? Entry(doctor) : ""),
+                    stalledPage ? "Patient/p1/$everything?cursor=2" : null));
+            if (request.RequestUri.AbsolutePath.EndsWith("/doctor"))
+                return ScriptedHandler.Xml(doctor.Replace("<Practitioner>", "<Practitioner xmlns='http://hl7.org/fhir'>"));
+            await Task.Delay(Timeout.Infinite, token);
+            return ScriptedHandler.Xml(Bundle(""));
+        });
+        using var context = new FhirTestContext(BaseUrl, handler);
+        var patient = new PatientSummary("p1", "Test", [], null, null, null, null, null);
+        var result = await context.Service.AddRecentPatientPractitionersAsync(patient);
+        Assert.Equal(PractitionerAssociationStatus.Incomplete, result.PractitionerStatus);
+        var resolved = Assert.Single(result.Practitioners, p => p.IsResolved);
+        Assert.Equal("Dr Found", resolved.Name);
+        Assert.Equal("staff1", Assert.Single(resolved.Identifiers).Value);
+        Assert.Contains("There may be more providers", result.PractitionerLookupError);
     }
 
     private sealed class AsyncHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> respond) : HttpMessageHandler

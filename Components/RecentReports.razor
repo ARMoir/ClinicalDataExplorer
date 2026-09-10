@@ -12,9 +12,30 @@
         @foreach (var item in Current)
         {
             <article class="patient-row directory-patient" @key="item.Id">
-                <div class="directory-identity"><div><h3><a href="@item.Url">@item.Title</a></h3><span>@item.Description</span></div></div>
+                <div class="directory-identity"><div><h3><a href="@item.Url">@item.Title</a></h3>@if (!Diagnostic) { <span>@item.Description</span> }</div></div>
+                @if (Diagnostic)
+                {
+                    <div class="report-patient-summary">
+                        <strong>Patient: </strong>
+                        @if (item.Patient is { } patient)
+                        {
+                            @if (item.PatientUrl is not null) { <a href="@item.PatientUrl">@patient.DisplayName</a> }
+                            else { <span>@patient.DisplayName</span> }
+                            <dl class="directory-demographics">
+                                <div><dt>Date of birth</dt><dd>@(patient.BirthDate ?? "Not recorded")</dd></div>
+                                <div><dt>Patient identifiers</dt><dd>@(patient.Identifiers.Count > 0 ? string.Join(" · ", patient.Identifiers) : "Not recorded")</dd></div>
+                                <div><dt>Patient record ID</dt><dd>@patient.Id</dd></div>
+                            </dl>
+                        }
+                        else
+                        {
+                            <span>@(string.IsNullOrWhiteSpace(item.Description) ? "Not recorded" : item.Description)</span>
+                            <p class="provider-lookup-warning">@(item.PatientError ?? "Patient details unavailable.")</p>
+                        }
+                    </div>
+                }
                 <dl class="directory-demographics"><div><dt>@(Diagnostic ? "Report date" : "Latest encounter")</dt><dd>@(item.Date?.ToLocalTime().ToString("MMM d, yyyy h:mm tt") ?? "Not recorded")</dd></div><div><dt>Record ID</dt><dd>@item.Id</dd></div></dl>
-                <ProviderList Providers="item.Providers" Error="@item.ProviderError" />
+                <ProviderList Providers="item.Providers" Error="@item.ProviderError" Incomplete="@(item.ProviderStatus == PractitionerAssociationStatus.Incomplete)" />
                 <a class="patient-open" href="@item.Url">Open report →</a>
             </article>
         }

@@ -20,7 +20,7 @@ public sealed partial class FhirService
         }
 
         var baseUri = GetBaseUri();
-        Uri? next = new(baseUri, "DiagnosticReport?_sort=-date&_count=10&_format=xml");
+        Uri? next = new(baseUri, "DiagnosticReport?_sort=-date&_include=DiagnosticReport:subject&_count=10&_format=xml");
         var pages = new HashSet<string>(StringComparer.Ordinal);
         var seen = new HashSet<string>(StringComparer.Ordinal);
         while (next is not null)
@@ -55,8 +55,32 @@ public sealed partial class FhirService
                 var subject = report.Element(Fhir + "subject");
                 var description = Value(subject, "display");
                 if (description.Length == 0) description = Value(subject, "reference");
+                PatientSummary? patient = null;
+                string? patientUrl = null, patientError = null;
+                // Scope context to this report, preserving included patient fullUrls.
+                var contextBundle = new XElement(Fhir + "Bundle",
+                    new XElement(Fhir + "entry", new XElement(Fhir + "resource", new XElement(report))),
+                    document.Root!.Elements(Fhir + "entry")
+                        .Where(e => e.Element(Fhir + "resource")?.Element(Fhir + "Patient") is not null)
+                        .Select(e => new XElement(e)));
+                using (var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                {
+                    budget.CancelAfter(TimeSpan.FromSeconds(2));
+                    try
+                    {
+                        var context = await GetReportContextAsync(contextBundle.ToString(), budget.Token);
+                        patientUrl = context.PatientUrl;
+                        patientError = context.PatientError;
+                        if (context.PatientXml is not null) patient = ToPatient(ParseDocument(context.PatientXml).Root!);
+                    }
+                    catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                    {
+                        patientError = "Patient details are taking longer to load. Open the report to view them.";
+                    }
+                }
                 yield return new(id, string.IsNullOrWhiteSpace(title) ? "Diagnostic report" : title, description,
-                    ResourceChronology.Date(report), "/reports/view?reportId=" + Uri.EscapeDataString(id), providers, status, error);
+                    ResourceChronology.Date(report), "/reports/view?reportId=" + Uri.EscapeDataString(id), providers, status, error)
+                { Patient = patient, PatientUrl = patientUrl, PatientError = patientError };
             }
             next = GetNextPageUri(document, baseUri);
         }
