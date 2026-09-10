@@ -51,12 +51,28 @@ public sealed class ResourceLayoutTests
         Assert.Contains("patient-lab-results", html);
         Assert.Contains("Blood panel", html);
         Assert.Contains("Potassium", html);
-        Assert.Contains("&gt;6.5 mmol/L", html);
+        Assert.Contains("&gt;6.5</td>", html);
+        Assert.Contains("class=\"lab-units\">mmol/L</td>", html);
+        Assert.Contains("colspan=\"8\"", html);
         Assert.Contains("lab-critical", html);
         Assert.Contains("3.5–5.0 mmol/L", html);
         Assert.Contains(">0</td>", html);
         Assert.Contains("Dr. Example", html);
         Assert.Contains("Follow-up requested.", html);
         Assert.Contains("All record details", html);
+    }
+
+    [Theory]
+    [InlineData("<unit value='mg/dL'/><code value='coded-unit'/>", "mg/dL")]
+    [InlineData("<code value='mm[Hg]'/>", "mm[Hg]")]
+    [InlineData("<unit value=' '/><code value='kg'/>", "kg")]
+    [InlineData("", "—")]
+    public void Observation_units_prefer_label_fall_back_to_code_and_leave_missing_units_unspecified(string fields, string expected)
+    {
+        var xml = Bundle("<entry><resource><Observation><id value='o1'/><valueQuantity><value value='12'/>" + fields + "</valueQuantity></Observation></resource></entry>");
+        var html = PatientExplorerTests.Transform("PatientResources", xml);
+        Assert.Contains("<th scope=\"col\">Units</th>", html);
+        Assert.Contains("class=\"lab-value\">12</td>", html);
+        Assert.Contains("class=\"lab-units\">" + expected + "</td>", html);
     }
 }

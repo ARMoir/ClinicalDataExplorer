@@ -562,6 +562,7 @@ button:disabled { opacity: .55; cursor: default; }
 }
 .resource-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; color: #566573; font-size: 13px; margin-bottom: 14px; }
 .resource-all-fields summary { cursor: pointer; color: var(--primary-color); font-size: 13px; font-weight: 650; padding: 8px 0; }
+.observation-report-text > summary { cursor: pointer; color: var(--primary-color); font-size: 14px; font-weight: 650; padding: 10px 0; }
 .xslt-detail-grid .value small { display: block; color: #566573; }
 
 /* Shared reference information stays out of the clinical workspace until opened. */
@@ -678,11 +679,36 @@ input, select, textarea { max-width: 100%; }
 .consolidated-observation { border-top: 1px solid #bdc3c7; margin-top: 20px; padding-top: 16px; }
 .consolidated-observation h4 { margin: 0 0 8px; }
 .save-patient { margin: 12px 0; }
-.save-patient summary { cursor: pointer; color: var(--primary-color); font-weight: 600; }
-.save-patient .search-card, .saved-list-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
-.save-patient label, .saved-list-controls label { display: grid; gap: 6px; min-width: 0; }
+.save-patient summary { cursor: pointer; color: var(--primary-color); font-size: 13px; font-weight: 600; line-height: 1.6; padding: 4px 0; }
+.save-patient .search-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 12px; max-width: 620px; margin-top: 10px; }
+.save-patient label { display: grid; gap: 6px; min-width: 0; margin: 0; font-size: 13px; }
 .save-patient input, .save-patient select, .saved-list-controls input, .saved-list-controls select { max-width: 100%; }
-.save-patient p, .saved-list-controls p { flex-basis: 100%; }
+.save-patient p, .save-patient .search-card > a { grid-column: 1 / -1; margin: 0; }
+.saved-list-controls { display: grid; gap: 20px; }
+.list-control-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.list-control-group { min-width: 0; }
+.saved-list-controls label { margin: 0 0 6px; font-size: 13px; line-height: 1.5; }
+.list-control-row { display: flex; align-items: center; gap: 8px; }
+.saved-list-controls input, .saved-list-controls select, .save-patient input, .save-patient select {
+    width: 100%; min-width: 0; min-height: 40px; box-sizing: border-box; border: 1px solid #bdc3c7;
+    border-radius: 7px; padding: 8px 12px; background: white; color: #17202a; font: inherit; font-size: 14px; line-height: 1.5;
+}
+.saved-list-controls button, .save-patient button { flex-shrink: 0; min-height: 40px; margin: 0; padding: 8px 14px; font: inherit; font-size: 14px; line-height: 1.5; white-space: nowrap; }
+.saved-list-controls button:disabled, .save-patient button:disabled { opacity: .6; cursor: default; }
+.list-management-row { display: flex; align-items: end; justify-content: space-between; gap: 20px; border-top: 1px solid #edf0f2; padding-top: 18px; }
+.list-management-row .list-control-group { flex: 0 1 calc(50% - 12px); }
+.list-delete-confirmation { padding: 16px; background: #f5f7f9; border-radius: 7px; }
+.list-delete-confirmation p { margin: 0 0 12px; }
+.list-confirm-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+@media (max-width: 760px) {
+    .list-control-grid { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+    .list-management-row { flex-wrap: wrap; }
+    .list-management-row .list-control-group { flex-basis: 100%; }
+}
+@media (max-width: 480px) {
+    .list-control-row { flex-direction: column; align-items: stretch; }
+    .save-patient .search-card { grid-template-columns: minmax(0, 1fr); }
+}
 .saved-patient-row { padding: 20px; margin: 16px 0; overflow-wrap: anywhere; }
 .saved-patient-row button { margin: 8px 12px; }
 @media print { .save-patient, .saved-list-controls, .saved-patient-row button { display: none; } }

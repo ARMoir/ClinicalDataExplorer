@@ -11,25 +11,46 @@
     <NotAuthorized><p>Sign in to use private patient lists.</p></NotAuthorized>
     <Authorized>
         <section class="search-card saved-list-controls" aria-label="Manage patient lists">
-            <label>New list name <input @bind="NewName" maxlength="80" disabled="@Busy" /></label>
-            <button @onclick="CreateAsync" disabled="@(Busy || string.IsNullOrWhiteSpace(NewName))">Create list</button>
-            <label>My lists
-                <select value="@Selected" @onchange="SelectAsync" disabled="@Busy">
-                    <option value="">Choose a list</option>
-                    @foreach (var list in Available) { <option value="@list.Id">@list.Name (@list.Count)</option> }
-                </select>
-            </label>
-            <button @onclick="RefreshAsync" disabled="@Busy">Refresh</button>
+            <div class="list-control-grid">
+                <div class="list-control-group">
+                    <label for="saved-list-select">My lists</label>
+                    <div class="list-control-row">
+                        <select id="saved-list-select" value="@Selected" @onchange="SelectAsync" disabled="@Busy">
+                            <option value="">Choose a list</option>
+                            @foreach (var list in Available) { <option value="@list.Id">@list.Name (@list.Count)</option> }
+                        </select>
+                        <button class="secondary-button" @onclick="RefreshAsync" disabled="@Busy">Refresh</button>
+                    </div>
+                </div>
+                <div class="list-control-group">
+                    <label for="saved-list-new">New list name</label>
+                    <div class="list-control-row">
+                        <input id="saved-list-new" @bind="NewName" maxlength="80" placeholder="e.g. Follow-up" disabled="@Busy" />
+                        <button class="primary-button" @onclick="CreateAsync" disabled="@(Busy || string.IsNullOrWhiteSpace(NewName))">Create list</button>
+                    </div>
+                </div>
+            </div>
             @if (Selected.Length > 0)
             {
-                <label>List name <input @bind="Rename" maxlength="80" disabled="@Busy" /></label>
-                <button @onclick="RenameAsync" disabled="@(Busy || string.IsNullOrWhiteSpace(Rename))">Rename list</button>
-                <button class="secondary-button" @onclick="() => ConfirmDelete = true" disabled="@Busy">Delete list…</button>
+                <div class="list-management-row">
+                    <div class="list-control-group">
+                        <label for="saved-list-rename">List name</label>
+                        <div class="list-control-row">
+                            <input id="saved-list-rename" @bind="Rename" maxlength="80" disabled="@Busy" />
+                            <button class="secondary-button" @onclick="RenameAsync" disabled="@(Busy || string.IsNullOrWhiteSpace(Rename))">Rename list</button>
+                        </div>
+                    </div>
+                    <button class="secondary-button" @onclick="() => ConfirmDelete = true" disabled="@Busy">Delete list…</button>
+                </div>
                 @if (ConfirmDelete)
                 {
-                    <p>Delete this list and its saved references? Patient records remain on the FHIR server.</p>
-                    <button @onclick="DeleteAsync" disabled="@Busy">Confirm delete</button>
-                    <button @onclick="() => ConfirmDelete = false" disabled="@Busy">Cancel</button>
+                    <div class="list-delete-confirmation">
+                        <p>Delete this list and its saved references? Patient records remain on the FHIR server.</p>
+                        <div class="list-confirm-actions">
+                            <button class="secondary-button" @onclick="DeleteAsync" disabled="@Busy">Confirm delete</button>
+                            <button class="secondary-button" @onclick="() => ConfirmDelete = false" disabled="@Busy">Cancel</button>
+                        </div>
+                    </div>
                 }
             }
         </section>

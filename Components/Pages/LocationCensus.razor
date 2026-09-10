@@ -80,7 +80,7 @@ else
     private string? Error;
     private DateTimeOffset? LoadedAt;
     private string Search = "";
-    private bool HideEmpty;
+    private bool HideEmpty = true;
     private void ClearFilters() { Search = ""; HideEmpty = false; }
     private static int EncounterCount(IReadOnlyList<LocationCensusGroup> groups) =>
         groups.SelectMany(g => g.Encounters).Select(r => r.Encounter.Id).Distinct(StringComparer.Ordinal).Count();

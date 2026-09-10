@@ -11,9 +11,9 @@
                         @foreach (var list in Available) { <option value="@list.Id">@list.Name</option> }
                     </select>
                 </label>
-                <button type="button" @onclick="SaveAsync" disabled="@(Busy || Selected.Length == 0)">Save patient</button>
+                <button class="primary-button" type="button" @onclick="SaveAsync" disabled="@(Busy || Selected.Length == 0)">Save patient</button>
                 <label>New list name <input @bind="Name" maxlength="80" disabled="@Busy" /></label>
-                <button type="button" @onclick="CreateAsync" disabled="@(Busy || string.IsNullOrWhiteSpace(Name))">Create list and save</button>
+                <button class="secondary-button" type="button" @onclick="CreateAsync" disabled="@(Busy || string.IsNullOrWhiteSpace(Name))">Create list and save</button>
                 <a href="/patient-lists">Manage my lists</a>
                 @if (Message is not null) { <p role="status">@Message</p> }
                 @if (Error is not null) { <p role="alert">@Error</p> }

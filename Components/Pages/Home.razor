@@ -51,8 +51,8 @@
                             <div><dt>Phone</dt><dd>@Display(patient.Phone)</dd></div><div><dt>@(IsSearch ? "Last updated" : "Latest encounter")</dt><dd>@((IsSearch ? patient.LastUpdated : patient.MostRecentEncounter)?.ToLocalTime().ToString("MMM d, yyyy") ?? "Not recorded")</dd></div>
                             <div class="directory-address"><dt>Address</dt><dd>@Display(patient.Address)</dd></div><div><dt>Email</dt><dd>@Display(patient.Email)</dd></div><div><dt>Record ID</dt><dd>@patient.Id</dd></div>
                         </dl>
-                        <SavePatient PatientId="@patient.Id" />
                         <ProviderList Providers="patient.Practitioners" Error="@patient.PractitionerLookupError" Incomplete="@(patient.PractitionerStatus == PractitionerAssociationStatus.Incomplete)" />
+                        <SavePatient PatientId="@patient.Id" />
                         <a class="patient-open" href="@($"/patient/{Uri.EscapeDataString(patient.Id)}")">Open patient report →</a>
                     </article>
                 }
