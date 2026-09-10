@@ -24,6 +24,16 @@ The census searches `Location` and `Encounter?status=arrived,triaged,in-progress
 
 Search the loaded census by location name or ID, patient name, or patient identifier / MRN. Location matches show every encounter at that location; patient matches show only matching encounters. **Hide empty locations** removes locations with no current encounters. Counts show the filtered results against the full census, and **Clear filters** restores all results. Filters remain applied when refreshing.
 
+## Saved patient lists
+
+Open **My lists** (`/patient-lists`) to create, rename, or delete private lists such as Follow-up or Chart review. Use **Save to patient list** from a patient search result, Census patient, or patient report to choose an existing list or create one. Duplicate saves keep one membership. Removing a patient or deleting a list never changes FHIR records.
+
+Lists require a named, authenticated account, even when application authentication is disabled. They are scoped to the account (Windows SID where available) and FHIR server URL. After changing servers, reload the page; lists for other servers remain stored and reappear when switching back. Administrators do not gain access to another user's lists through this feature.
+
+The list page loads ten patients at a time, fetching current demographics and the latest encounter through `Encounter?patient=...&_sort=-date&_count=1`. Refresh retrieves current details again. Unavailable records show a retry message and can still be removed. Each patient links to their report, and each returned latest encounter links to its encounter report.
+
+List names, ownership, server URLs, and patient IDs are stored in tables within `App_Data/audit.sqlite`; demographics and clinical records are not copied into these tables. List mutations and their audit events commit in one SQLite transaction. Audit events include list IDs and affected patient references, without list names. Protect and back up this database using the same application identity permissions as the existing audit store.
+
 ## Run
 
 ```powershell

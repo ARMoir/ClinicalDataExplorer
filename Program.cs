@@ -45,6 +45,7 @@ builder.Services.AddHttpClient("Fhir", client =>
 builder.Services.AddScoped<FhirService>();
 builder.Services.AddSingleton<AuditStore>();
 builder.Services.AddScoped<UserActivityService>();
+builder.Services.AddScoped<PatientListService>();
 builder.Services.AddSingleton<ApplicationSettingsService>();
 builder.Services.AddSingleton<IAuthorizationHandler, ApplicationAccessHandler>();
 builder.Services.AddSingleton<XsltService>();

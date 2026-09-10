@@ -28,7 +28,7 @@ public sealed class AuditStore
             """;
         command.ExecuteNonQuery();
     }
-    private SqliteConnection Open()
+    internal SqliteConnection Open()
     {
         var connection = new SqliteConnection(connectionString);
         connection.Open();

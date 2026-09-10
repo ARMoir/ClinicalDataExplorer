@@ -1,0 +1,47 @@
+@inject PatientListService Lists
+
+<AuthorizeView>
+    <Authorized>
+        <details class="save-patient">
+            <summary @onclick="LoadAsync">Save to patient list</summary>
+            <div class="search-card">
+                <label>Patient list
+                    <select @bind="Selected" disabled="@Busy">
+                        <option value="">Choose a list</option>
+                        @foreach (var list in Available) { <option value="@list.Id">@list.Name</option> }
+                    </select>
+                </label>
+                <button type="button" @onclick="SaveAsync" disabled="@(Busy || Selected.Length == 0)">Save patient</button>
+                <label>New list name <input @bind="Name" maxlength="80" disabled="@Busy" /></label>
+                <button type="button" @onclick="CreateAsync" disabled="@(Busy || string.IsNullOrWhiteSpace(Name))">Create list and save</button>
+                <a href="/patient-lists">Manage my lists</a>
+                @if (Message is not null) { <p role="status">@Message</p> }
+                @if (Error is not null) { <p role="alert">@Error</p> }
+            </div>
+        </details>
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    [Parameter, EditorRequired] public string PatientId { get; set; } = "";
+    private IReadOnlyList<SavedPatientList> Available = [];
+    private string Selected = "", Name = "";
+    private string? Message, Error;
+    private bool Busy;
+    private Task LoadAsync() => RunAsync(async () => Available = await Lists.ReadAsync());
+    private Task SaveAsync() => RunAsync(async () => { await Lists.AddAsync(Selected, PatientId); Message = "Patient saved to your list."; });
+    private Task CreateAsync() => RunAsync(async () =>
+    {
+        Selected = await Lists.CreateAsync(Name);
+        Available = await Lists.ReadAsync(); Name = "";
+        await Lists.AddAsync(Selected, PatientId); Message = "List created and patient saved.";
+    });
+    private async Task RunAsync(Func<Task> operation)
+    {
+        if (Busy) return;
+        Busy = true; Error = null; Message = null;
+        try { await operation(); }
+        catch (Exception ex) { Error = ex.Message; }
+        finally { Busy = false; }
+    }
+}

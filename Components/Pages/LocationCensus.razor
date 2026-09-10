@@ -57,6 +57,7 @@ else
                                     <td>
                                         @if (row.PatientId is not null) { <a href="@("/patient/" + Uri.EscapeDataString(row.PatientId))">@row.PatientDisplay</a> }
                                         else { <span>@row.PatientDisplay</span> }
+                                        @if (row.PatientId is not null) { <SavePatient PatientId="@row.PatientId" @key="row.PatientId" /> }
                                         @if (row.Patient is { } patient) { <div>@string.Join(" · ", patient.Identifiers)</div><small>Born: @(patient.BirthDate ?? "Not recorded")</small> }
                                         else { <div>Patient details unavailable</div> }
                                     </td>

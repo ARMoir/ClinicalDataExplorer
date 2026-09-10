@@ -12,6 +12,7 @@
 @if (Loading) { <div class="empty-state" role="status">Loading demographics…</div> }
 @if (PatientError is not null) { <div class="error-card" role="alert">@PatientError</div> }
 @((MarkupString)PatientHtml)
+@if (!Loading && PatientError is null) { <SavePatient PatientId="@PatientId" @key="PatientId" /> }
 @if (LoadingResources) { <div class="empty-state patient-loading" role="status"><span class="loading-spinner" aria-hidden="true"></span><span>Loading patient records… @Sections.Sum(s => s.Count) records found so far. You can explore the sections below while loading continues.</span></div> }
 @if (ResourceError is not null)
 {

@@ -1,0 +1,117 @@
+@page "/patient-lists"
+@implements IDisposable
+@inject PatientListService Lists
+@inject FhirService Fhir
+@inject ApplicationSettingsService Settings
+
+<PageTitle>@Settings.Current.ProductName - My patient lists</PageTitle>
+<h1>My patient lists</h1>
+<p>Private to your signed-in account. Patient details and latest encounters are retrieved when you open or refresh a list.</p>
+<AuthorizeView>
+    <NotAuthorized><p>Sign in to use private patient lists.</p></NotAuthorized>
+    <Authorized>
+        <section class="search-card saved-list-controls" aria-label="Manage patient lists">
+            <label>New list name <input @bind="NewName" maxlength="80" disabled="@Busy" /></label>
+            <button @onclick="CreateAsync" disabled="@(Busy || string.IsNullOrWhiteSpace(NewName))">Create list</button>
+            <label>My lists
+                <select value="@Selected" @onchange="SelectAsync" disabled="@Busy">
+                    <option value="">Choose a list</option>
+                    @foreach (var list in Available) { <option value="@list.Id">@list.Name (@list.Count)</option> }
+                </select>
+            </label>
+            <button @onclick="RefreshAsync" disabled="@Busy">Refresh</button>
+            @if (Selected.Length > 0)
+            {
+                <label>List name <input @bind="Rename" maxlength="80" disabled="@Busy" /></label>
+                <button @onclick="RenameAsync" disabled="@(Busy || string.IsNullOrWhiteSpace(Rename))">Rename list</button>
+                <button class="secondary-button" @onclick="() => ConfirmDelete = true" disabled="@Busy">Delete list…</button>
+                @if (ConfirmDelete)
+                {
+                    <p>Delete this list and its saved references? Patient records remain on the FHIR server.</p>
+                    <button @onclick="DeleteAsync" disabled="@Busy">Confirm delete</button>
+                    <button @onclick="() => ConfirmDelete = false" disabled="@Busy">Cancel</button>
+                }
+            }
+        </section>
+        @if (Error is not null) { <div class="error-card" role="alert">@Error</div> }
+        @if (Busy) { <p role="status">Loading…</p> }
+        else if (Available.Count == 0) { <p>Create your first list, then save patients from search, Census, or a patient report.</p> }
+        else if (Selected.Length > 0 && Members.Count == 0) { <p>This list is empty. Save patients from search, Census, or a patient report.</p> }
+        @foreach (var row in Rows)
+        {
+            <article class="patient-list-card saved-patient-row" @key="row.Id">
+                <h2><a href="@("/patient/" + Uri.EscapeDataString(row.Id))">@(row.Patient?.DisplayName ?? "Patient " + row.Id)</a></h2>
+                @if (row.Error is not null) { <p role="alert">Unable to load current details: @row.Error. Refresh to retry.</p> }
+                else
+                {
+                    <p>@string.Join(" · ", row.Patient!.Identifiers)</p>
+                    @if (row.Encounter is { } encounter)
+                    {
+                        <p>Latest encounter: <a href="@("/encounter/" + Uri.EscapeDataString(encounter.Id))">@(encounter.Start?.ToLocalTime().ToString("g") ?? "Date not recorded")</a> · @encounter.Type · @encounter.Status</p>
+                    }
+                    else { <p>No encounters returned.</p> }
+                }
+                <a href="@("/patient/" + Uri.EscapeDataString(row.Id))">Open patient report</a>
+                <button class="secondary-button" aria-label="@("Remove patient " + (row.Patient?.DisplayName ?? row.Id) + " from list")" @onclick="() => RemoveAsync(row.Id)" disabled="@Busy">Remove from list</button>
+            </article>
+        }
+        @if (Selected.Length > 0 && Members.Count > 0)
+        {
+            <nav class="pagination" aria-label="Saved patient pages">
+                <button @onclick="() => ChangePageAsync(-1)" disabled="@(Busy || Page == 0)">Previous</button>
+                <span>Page @(Page + 1) of @((Members.Count + 9) / 10) · @Members.Count patients</span>
+                <button @onclick="() => ChangePageAsync(1)" disabled="@(Busy || (Page + 1) * 10 >= Members.Count)">Next</button>
+            </nav>
+        }
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    private readonly CancellationTokenSource Lifetime = new();
+    private IReadOnlyList<SavedPatientList> Available = [];
+    private IReadOnlyList<string> Members = [];
+    private List<Row> Rows = [];
+    private string Selected = "", NewName = "", Rename = "";
+    private string? Error;
+    private bool Busy, ConfirmDelete;
+    private int Page;
+    private sealed record Row(string Id, PatientSummary? Patient, EncounterSummary? Encounter, string? Error);
+    protected override Task OnInitializedAsync() => RefreshAsync();
+    private Task RefreshAsync() => RunAsync(async () => { Available = await Lists.ReadAsync(); if (!Available.Any(l => l.Id == Selected)) Selected = ""; await LoadMembersAsync(); });
+    private Task SelectAsync(ChangeEventArgs args) => RunAsync(async () => { Selected = args.Value?.ToString() ?? ""; Page = 0; ConfirmDelete = false; await LoadMembersAsync(); });
+    private Task CreateAsync() => RunAsync(async () => { Selected = await Lists.CreateAsync(NewName); NewName = ""; Page = 0; Available = await Lists.ReadAsync(); await LoadMembersAsync(); });
+    private Task RenameAsync() => RunAsync(async () => { await Lists.RenameAsync(Selected, Rename); Available = await Lists.ReadAsync(); });
+    private Task DeleteAsync() => RunAsync(async () => { await Lists.DeleteAsync(Selected); Selected = ""; ConfirmDelete = false; Available = await Lists.ReadAsync(); await LoadMembersAsync(); });
+    private Task RemoveAsync(string id) => RunAsync(async () => { await Lists.RemoveAsync(Selected, id); Available = await Lists.ReadAsync(); await LoadMembersAsync(); });
+    private Task ChangePageAsync(int delta) => RunAsync(async () => { Page += delta; await LoadRowsAsync(); });
+    private async Task LoadMembersAsync()
+    {
+        Rows.Clear(); Members = [];
+        Rename = Available.FirstOrDefault(l => l.Id == Selected)?.Name ?? "";
+        if (Selected.Length == 0) return;
+        Members = await Lists.MembersAsync(Selected);
+        Page = Math.Min(Page, Math.Max(0, (Members.Count - 1) / 10));
+        await LoadRowsAsync();
+    }
+    private async Task LoadRowsAsync()
+    {
+        Rows.Clear();
+        foreach (var batch in Members.Skip(Page * 10).Take(10).Chunk(5))
+            Rows.AddRange(await Task.WhenAll(batch.Select(async id =>
+            {
+                try { var detail = await Fhir.GetSavedPatientAsync(id, Lifetime.Token); return new Row(id, detail.Patient, detail.Encounter, null); }
+                catch (OperationCanceledException) when (Lifetime.IsCancellationRequested) { throw; }
+                catch (Exception ex) { return new Row(id, null, null, ex.Message); }
+            })));
+    }
+    private async Task RunAsync(Func<Task> operation)
+    {
+        if (Busy) return;
+        Busy = true; Error = null;
+        try { await operation(); }
+        catch (OperationCanceledException) when (Lifetime.IsCancellationRequested) { }
+        catch (Exception ex) { Error = ex.Message; Rows.Clear(); }
+        finally { Busy = false; }
+    }
+    public void Dispose() { Lifetime.Cancel(); Lifetime.Dispose(); }
+}
