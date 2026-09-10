@@ -35,7 +35,7 @@
           <xsl:if test="not($reportText) and (f:valueQuantity or f:valueString or f:valueCodeableConcept or f:valueBoolean or f:valueInteger)"><p class="observation-value"><xsl:value-of select="f:valueQuantity/f:comparator/@value"/><xsl:value-of select="f:valueQuantity/f:value/@value | f:valueString/@value | f:valueBoolean/@value | f:valueInteger/@value"/><xsl:text> </xsl:text><xsl:choose><xsl:when test="f:valueQuantity/f:unit/@value"><xsl:value-of select="f:valueQuantity/f:unit/@value"/></xsl:when><xsl:otherwise><xsl:value-of select="f:valueQuantity/f:code/@value"/></xsl:otherwise></xsl:choose><xsl:choose><xsl:when test="f:valueCodeableConcept/f:text/@value"><xsl:value-of select="f:valueCodeableConcept/f:text/@value"/></xsl:when><xsl:otherwise><xsl:value-of select="f:valueCodeableConcept/f:coding[1]/f:display/@value"/></xsl:otherwise></xsl:choose></p></xsl:if>
           <xsl:for-each select="$reportText"><div class="clinical-document"><xsl:call-template name="render-report-lines"><xsl:with-param name="text" select="."/></xsl:call-template></div></xsl:for-each>
           <dl class="record-highlights"><xsl:apply-templates select="." mode="highlights"/></dl>
-          <xsl:apply-templates select="p:consolidatedObservations" mode="consolidated"/>
+
           <details class="resource-all-fields"><xsl:if test="$expandDetails = 'true'"><xsl:attribute name="open">open</xsl:attribute></xsl:if><summary>All record details</summary><dl class="resource-fields"><xsl:apply-templates select="*" mode="field"/></dl></details>
         </article>
       </xsl:for-each>
@@ -43,18 +43,6 @@
     </div>
   </xsl:template>
   <xsl:template match="p:consolidatedObservations" mode="field"/>
-  <xsl:template match="p:consolidatedObservations" mode="consolidated">
-    <xsl:for-each select="p:item/f:Observation">
-      <section class="consolidated-observation">
-        <h4>Included observation: <xsl:choose><xsl:when test="f:code/f:text/@value"><xsl:value-of select="f:code/f:text/@value"/></xsl:when><xsl:when test="f:code/f:coding/f:display/@value"><xsl:value-of select="f:code/f:coding/f:display/@value"/></xsl:when><xsl:otherwise><xsl:value-of select="f:id/@value"/></xsl:otherwise></xsl:choose></h4>
-        <p>Observation ID: <xsl:value-of select="f:id/@value"/> · Matched by <xsl:value-of select="../@match"/></p>
-        <xsl:if test="*[starts-with(local-name(), 'value')][not(@value[contains(., '&#10;') or contains(., '\n')])]"><p class="observation-value"><xsl:apply-templates select="*[starts-with(local-name(), 'value')][1]" mode="readable"/></p></xsl:if>
-        <xsl:for-each select="descendant::*/@value[contains(., '&#10;') or contains(., '\n')]"><div class="clinical-document"><xsl:call-template name="render-report-lines"><xsl:with-param name="text" select="."/></xsl:call-template></div></xsl:for-each>
-        <dl class="record-highlights"><xsl:apply-templates select="." mode="highlights"/></dl>
-        <details class="resource-all-fields"><summary>All included observation details</summary><dl class="resource-fields"><xsl:apply-templates select="*" mode="field"/></dl></details>
-      </section>
-    </xsl:for-each>
-  </xsl:template>
   <xsl:template match="f:Observation | f:component" mode="lab-row">
     <xsl:variable name="observation" select="ancestor-or-self::f:Observation[1]"/>
     <xsl:variable name="flag"><xsl:choose><xsl:when test="f:interpretation/f:coding/f:code/@value"><xsl:value-of select="f:interpretation[1]/f:coding[1]/f:code/@value"/></xsl:when><xsl:otherwise><xsl:apply-templates select="f:interpretation[1]" mode="readable"/></xsl:otherwise></xsl:choose></xsl:variable>

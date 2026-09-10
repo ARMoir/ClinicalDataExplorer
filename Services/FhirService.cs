@@ -183,10 +183,7 @@ public sealed partial class FhirService(
         return BuildSections(document);
 
         IReadOnlyList<PatientResourceSection> BuildSections(XDocument document) =>
-            DiagnosticReportConsolidation.Consolidate(document, baseUri)
-            .GroupBy(r => DiagnosticReportConsolidation.IsMovedObservation(r)
-                    ? "DiagnosticReport" : r.Name.LocalName).OrderBy(g => g.Key, StringComparer.Ordinal)
-            .Select(g => new PatientResourceSection(g.Key, g.Select(r => new XElement(r)).ToList())).ToList();
+            PatientSectionGrouping.Build(document);
     }
 
     private static void EnsureBundle(XDocument document)

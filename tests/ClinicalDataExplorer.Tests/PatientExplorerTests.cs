@@ -209,7 +209,7 @@ public sealed class PatientExplorerTests
     [Theory]
     [InlineData(@"\n")]
     [InlineData("&#10;")]
-    public async Task Multiline_observations_are_formatted_in_diagnostic_reports(string separator)
+    public async Task Multiline_observations_are_formatted_in_documents(string separator)
     {
         var text = $"FINDINGS{separator}Result: Clear{separator}{separator}-----{separator}&lt;script&gt;";
         var report = Entry($"<Observation><id value='report'/><valueString value='{text}'/></Observation>");
@@ -219,8 +219,9 @@ public sealed class PatientExplorerTests
                 Entry("<DiagnosticReport><id value='diagnostic'/></DiagnosticReport>"))));
         using var context = new FhirTestContext(BaseUrl, handler);
         var sections = await context.Service.GetPatientResourceSectionsAsync("p1");
-        var reports = Assert.Single(sections, s => s.ResourceType == "DiagnosticReport");
-        Assert.Equal(2, reports.Count);
+        var reports = Assert.Single(sections, s => s.ResourceType == "DocumentReference");
+        Assert.Equal(1, reports.Count);
+        Assert.Equal(1, Assert.Single(sections, s => s.ResourceType == "DiagnosticReport").Count);
         var observations = Assert.Single(sections, s => s.ResourceType == "Observation");
         Assert.Equal("scalar", Assert.Single(observations.Resources).Element(XName.Get("id", "http://hl7.org/fhir"))!.Attribute("value")!.Value);
         var html = Transform("PatientResources", reports.PageXml());

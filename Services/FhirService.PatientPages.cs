@@ -38,9 +38,7 @@ public sealed partial class FhirService
             var snapshot = new XDocument(new XElement(combined));
             // Resolve included providers without starting unbounded extra reads.
             await ResolvePractitionerReferencesAsync(snapshot, cancellationToken, fetchMissing: false);
-            var sections = DiagnosticReportConsolidation.Consolidate(snapshot, baseUri)
-                .GroupBy(r => DiagnosticReportConsolidation.IsMovedObservation(r) ? "DiagnosticReport" : r.Name.LocalName)
-                .Select(g => new PatientResourceSection(g.Key, g.Select(r => new XElement(r)).ToList())).ToList();
+            var sections = PatientSectionGrouping.Build(snapshot);
             yield return (sections, next is not null);
         }
     }
