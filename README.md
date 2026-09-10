@@ -29,7 +29,7 @@ For deployment to another machine, create a publish folder and deploy its entire
 dotnet publish ClinicalDataExplorer.csproj -c Release -o .artifacts/publish
 ```
 
-Publishing also packages Blazor's framework scripts and static asset manifests. Ordinary build outputs can reference framework assets in the local SDK/package cache, so use the publish output for deployment. Launch from the deployed folder so the content root resolves `XSLT/` and `App_Data/` correctly.
+The build copies resolved static web assets, including Blazor's framework scripts and compressed variants, into its output `wwwroot/` so a Production launch does not depend on the SDK/package cache. Publishing remains the recommended deployment workflow and also produces the deployment static asset manifest. Launch from the deployed folder so the content root resolves `XSLT/` and `App_Data/` correctly.
 
 The app creates `App_Data/`, its audit database, and `wwwroot/uploads/` as needed at startup. Preserve the destination's runtime settings, uploaded logos, and audit database when updating an existing installation; copying packaged settings can replace local configuration. The application identity needs write access to these runtime data directories.
 

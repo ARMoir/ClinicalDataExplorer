@@ -27,6 +27,18 @@
              CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- Include SDK/package assets as well as this project's wwwroot files.
+       Production launches do not use the development package-cache manifest. -->
+  <Target Name="CopyFrameworkAssetsToBuildOutput"
+          BeforeTargets="CopyStaticWebAssetsToOutputDirectory"
+          DependsOnTargets="LoadStaticWebAssetsBuildManifest">
+    <ItemGroup>
+      <StaticWebAsset Update="@(StaticWebAsset)"
+                      Condition="'%(StaticWebAsset.AssetKind)' != 'Publish'"
+                      CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+  </Target>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Negotiate" Version="10.0.11" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.0" />
