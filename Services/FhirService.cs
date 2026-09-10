@@ -240,7 +240,7 @@ public sealed partial class FhirService(
 
         var baseUri = GetBaseUri();
         Uri? nextUri = new(baseUri,
-            "Observation?encounter=" + Uri.EscapeDataString(encounterId.Trim()) +
+            "Observation?encounter:Encounter=" + Uri.EscapeDataString(encounterId.Trim()) +
             "&_sort=-date&_count=100&_format=xml");
         var observations = new List<ObservationSummary>();
 
@@ -271,7 +271,7 @@ public sealed partial class FhirService(
 
     public async Task<string> GetEncounterObservationBundleXmlAsync(string encounterId, CancellationToken cancellationToken = default) =>
         await AddPractitionerPresentationAsync(await GetAllBundlePagesAsync(
-            "Observation?encounter=" + Uri.EscapeDataString(RequireId(encounterId, "encounter")) +
+            "Observation?encounter:Encounter=" + Uri.EscapeDataString(RequireId(encounterId, "encounter")) +
             "&_sort=-date&_count=100&_format=xml",
             cancellationToken), cancellationToken);
 
@@ -573,7 +573,7 @@ public sealed partial class FhirService(
             {
                 var encounter = encounters[index];
                 var uri = new Uri(baseUri,
-                    "Observation?encounter=" + Uri.EscapeDataString(encounter.Id) +
+                    "Observation?encounter:Encounter=" + Uri.EscapeDataString(encounter.Id) +
                     "&_summary=count&_total=accurate&_format=xml");
                 var document = ParseDocument(await GetXmlAsync(uri, baseUri, token));
                 var totalText = Value(document.Root, "total");

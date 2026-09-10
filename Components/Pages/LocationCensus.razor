@@ -11,6 +11,18 @@
     <button data-audit="LocationCensus:Refresh" class="secondary-button" @onclick="LoadAsync" disabled="@Busy">Refresh census</button>
 </div>
 <p>Includes arrived, triaged, in-progress and on-leave encounters whose period has not ended. Only current location assignments are shown. An encounter may appear at more than one location.</p>
+<section class="search-card census-filters" aria-label="Census filters">
+    <label for="census-search">Search locations or patients</label>
+    <div class="search-row">
+        <input id="census-search" type="search" data-audit="Census:Search" @bind="Search" @bind:event="oninput"
+               placeholder="Location, patient name, or patient identifier / MRN" autocomplete="off" aria-describedby="census-search-help" />
+        <button type="button" data-audit="Census:ClearFilters" @onclick="ClearFilters" disabled="@(Search.Length == 0 && !HideEmpty)">Clear filters</button>
+    </div>
+    <p id="census-search-help">Matching locations show all their encounters. Patient matches show only matching patients.</p>
+    <label class="census-empty-toggle" for="census-hide-empty">
+        <input id="census-hide-empty" type="checkbox" data-audit="Census:HideEmpty" @bind="HideEmpty" /> Hide empty locations
+    </label>
+</section>
 @if (Busy)
 {
     <div class="empty-state" role="status">Loading census…</div>
@@ -21,13 +33,15 @@ else if (Error is not null)
 }
 else
 {
-    <p role="status">@Groups.Count locations / groups · @Groups.SelectMany(g => g.Encounters).Select(r => r.Encounter.Id).Distinct().Count() current encounters · Loaded @LoadedAt?.ToLocalTime().ToString("g")</p>
+    var visibleGroups = FilteredGroups();
+    <p role="status">Showing @visibleGroups.Count of @Groups.Count locations / groups · @EncounterCount(visibleGroups) of @EncounterCount(Groups) current encounters · Loaded @LoadedAt?.ToLocalTime().ToString("g")</p>
     @if (Groups.Count == 0) { <div class="empty-state">No locations or current encounters were returned.</div> }
-    @foreach (var group in Groups)
+    else if (visibleGroups.Count == 0) { <div class="empty-state">No locations or patients match these filters. Clear filters to see the full census.</div> }
+    @foreach (var group in visibleGroups)
     {
         <section class="viewer-card census-location" @key="group.Key">
             <h2>@group.Name</h2>
-            <p>@group.Key · @(group.Status ?? "Status not supplied") · @group.Encounters.Count current encounters</p>
+            <p>@group.Key · @(group.Status ?? "Status not supplied") · @group.Encounters.Count current encounters shown</p>
             @if (group.Encounters.Count == 0) { <p>No current encounters at this location.</p> }
             else
             {
@@ -64,6 +78,31 @@ else
     private bool Busy;
     private string? Error;
     private DateTimeOffset? LoadedAt;
+    private string Search = "";
+    private bool HideEmpty;
+    private void ClearFilters() { Search = ""; HideEmpty = false; }
+    private static int EncounterCount(IReadOnlyList<LocationCensusGroup> groups) =>
+        groups.SelectMany(g => g.Encounters).Select(r => r.Encounter.Id).Distinct(StringComparer.Ordinal).Count();
+
+    private IReadOnlyList<LocationCensusGroup> FilteredGroups()
+    {
+        var query = Search.Trim();
+        bool Matches(string? value) => value?.Contains(query, StringComparison.OrdinalIgnoreCase) == true;
+        var result = new List<LocationCensusGroup>();
+        foreach (var group in Groups)
+        {
+            if (HideEmpty && group.Encounters.Count == 0) continue;
+            if (query.Length == 0 || Matches(group.Name) || Matches(group.Key))
+                result.Add(group);
+            else
+            {
+                var rows = group.Encounters.Where(row => Matches(row.PatientDisplay) || Matches(row.PatientId) ||
+                    row.Patient?.Identifiers.Any(Matches) == true).ToList();
+                if (rows.Count > 0) result.Add(group with { Encounters = rows });
+            }
+        }
+        return result;
+    }
     protected override Task OnInitializedAsync() => LoadAsync();
     private async Task LoadAsync()
     {

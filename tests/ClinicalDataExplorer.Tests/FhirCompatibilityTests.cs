@@ -12,6 +12,27 @@ public sealed class FhirCompatibilityTests
     private static readonly XNamespace Fhir = "http://hl7.org/fhir";
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Encounter_observations_disambiguate_reference_type_for_strict_servers(bool report)
+    {
+        using var handler = new ScriptedHandler(request =>
+        {
+            if (!request.RequestUri!.Query.Contains("encounter:Encounter=e1", StringComparison.Ordinal))
+                return ScriptedHandler.Xml("<OperationOutcome xmlns='http://hl7.org/fhir'/>", HttpStatusCode.BadRequest);
+            return ScriptedHandler.Xml(Bundle(Entry("<Observation><id value='o1'/><status value='final'/><code><text value='Pulse'/></code></Observation>")));
+        });
+        using var context = new FhirTestContext(BaseUrl, handler);
+        if (report)
+        {
+            var document = XDocument.Parse(await context.Service.GetEncounterObservationBundleXmlAsync("e1"));
+            Assert.Equal("o1", Assert.Single(document.Descendants(Fhir + "Observation")).Element(Fhir + "id")?.Attribute("value")?.Value);
+        }
+        else Assert.Equal("o1", Assert.Single(await context.Service.GetEncounterObservationsAsync("e1")).Id);
+        Assert.Equal(1, handler.Calls);
+    }
+
+    [Theory]
     [InlineData("?_getpages=opaque%2Btoken%3D&_getpagesoffset=100&_format=xml")]
     [InlineData("Observation?ct=opaque%2Btoken%3D&_count=100")]
     public async Task Observations_follow_opaque_Hapi_and_Microsoft_continuation_links(string continuation)
@@ -110,7 +131,7 @@ public sealed class FhirCompatibilityTests
             _ => ScriptedHandler.Xml(Bundle(Entry("<Encounter><id value='e1'/></Encounter>"))),
             request =>
             {
-                Assert.Contains("encounter=e1", request.RequestUri!.Query);
+                Assert.Contains("encounter:Encounter=e1", request.RequestUri!.Query);
                 Assert.Contains("_summary=count", request.RequestUri.Query);
                 Assert.Contains("_total=accurate", request.RequestUri.Query);
                 return ScriptedHandler.Xml(Bundle("<total value='12'/>"));

@@ -58,6 +58,8 @@ main h1[tabindex="-1"]:focus { outline: none; box-shadow: none; text-decoration:
 .census-location h2 { margin-top: 0; }
 .census-location td { overflow-wrap: anywhere; }
 .census-location a { color: var(--primary-color); font-weight: 650; }
+.census-filters .census-empty-toggle { display: flex; align-items: center; gap: 8px; margin-bottom: 0; }
+.census-filters input[type=checkbox] { width: 18px; height: 18px; }
 .page-header h1 { margin: 0 0 8px; }
 .page-header p { margin: 0 0 22px; color: #5d6d7e; }
 
