@@ -70,7 +70,7 @@
     private Dictionary<string, PatientResourceLoad> Sources = new(StringComparer.Ordinal);
     private readonly HashSet<string> Hidden = new(StringComparer.Ordinal);
     private IEnumerable<PatientResourceSection> VisibleSections => Sections.Where(s => !Hidden.Contains(s.ResourceType) &&
-        (ShowEmpty || s.Count > 0 || SectionSources(s).Any(p => p.HasMore || p.Loading || p.Error is not null)) &&
+        (ShowEmpty || s.Count > 0) &&
         (s.Label.Contains(Filter, StringComparison.OrdinalIgnoreCase) || s.ResourceType.Contains(Filter, StringComparison.OrdinalIgnoreCase)));
     private IEnumerable<PatientResourceLoad> SectionSources(PatientResourceSection section) => Sources.Values.Where(s =>
         s.ResourceType == section.ResourceType || (section.ResourceType == "DocumentReference" && s.ResourceType == "Observation"));
