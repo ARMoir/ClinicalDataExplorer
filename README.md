@@ -60,7 +60,7 @@ For signed-in users, **Save to patient list** appears below associated providers
 
 ## Patient reports
 
-Patient demographics load first. Clinical sections are discovered progressively from `Patient/{id}/$everything`, including supporting resources returned by the server. Up to **50 records per section** are initially available; loading pauses when a section reaches its limit. **Find more categories and records** resumes discovery, and **Load more (up to 50)** increases a section's available records. Sections display **ten records per page**.
+Patient demographics load first. The report searches each resource type independently through `Patient/{id}/{type}?_count=50`, with at most three concurrent requests. Common clinical categories load one server page initially; other categories load when opened. Each category has its own continuation and retry controls, so a failed category does not stop the others. Counts distinguish unloaded, incomplete, and fully retrieved categories. Sections display **ten records per page**. Multiline observations still appear with documents. Included supporting resources are retained, and other linked records open on demand through record links; the report does not recursively collect all resources that `$everything` might return.
 
 Counts describe records available so far and can be partial while loading is active or paused, or after a failure. Previously loaded content remains visible with an explicit incomplete-results message if loading fails; **Retry report** restarts loading. After discovery completes, **Show types with no returned records** makes empty patient-compartment categories available. Zero records returned is not proof of clinical absence.
 
@@ -188,14 +188,15 @@ Core queries include:
 
 - `Encounter?_sort=-date&_include=Encounter:patient` for recent-patient discovery.
 - `Patient?identifier=...` and `Patient?family=...&given=...` for patient searches.
-- `Patient/{id}/$everything` for patient sections and supporting records.
+- `Patient/{id}/{type}?_count=50` for independent patient-report categories.
+- `Patient/{id}/$everything` remains in provider-association and legacy aggregate helpers.
 - `Encounter?patient=...&_sort=-date` for patient encounter history.
 - `Observation?encounter:Encounter=...&_summary=count` for observation counts.
 - `Observation?encounter:Encounter=...&_sort=-date` for encounter observations.
 
 Requests use strict handling for required search features. Patient search values escape literal FHIR delimiters. Continuation links must remain within the configured server/base path; automatic HTTP redirects are disabled. Resource identity deduplication is case-sensitive. Invalid XML, unexpected responses, error/fatal OperationOutcomes, and exceeded safety limits produce explicit errors.
 
-The progressive patient-report stream requests 50 records per server page and enforces a maximum of 200 pages / 10,000 returned resources, rejecting repeated continuation links. Other queries have their own bounded paging limits. The HTTP request timeout is 30 seconds. Unsupported `$everything` leaves demographics available while clinical-section loading reports an error. Validate required sorts, includes, and operations on the actual target server; a capability statement alone is insufficient.
+Each patient-report category requests 50 records per server page and enforces a maximum of 200 pages / 10,000 retained resources, rejecting repeated continuation links. Other queries have their own bounded paging limits. The HTTP request timeout is 30 seconds. Unsupported compartment searches leave demographics and successful categories available while the affected category reports an error. Validate compartment-search support on the target server. Validate required sorts, includes, and operations on the actual target server; a capability statement alone is insufficient.
 
 ## XSLT customization
 
