@@ -19,6 +19,7 @@
         <h2>Patient records</h2>
         <p>@Sections.Sum(s => s.Count) records received. Each category loads independently, requesting 50 records per server page. Open another category to load it. Counts reflect only records received so far.</p>
         <p>Linked supporting records are available through the links within each record.</p>
+        <p role="status">@EnrichmentStatus</p>
         <div class="report-controls">
             <label class="report-section-search" for="resource-filter">Find a section <input id="resource-filter" data-audit="PatientReport:SectionFilter" @bind="Filter" @bind:event="oninput" placeholder="e.g. visits or medications" /></label>
             <button class="secondary-button" data-audit="PatientReport:ExpandVisibleSections" @onclick="ExpandVisible">Expand loaded sections</button>
@@ -60,6 +61,8 @@
     [Parameter] public string PatientId { get; set; } = string.Empty;
     private CancellationTokenSource? Request;
     private readonly SemaphoreSlim LoadSlots = new(3);
+    private IReadOnlyList<System.Xml.Linq.XElement> EnrichedResources = [];
+    private string EnrichmentStatus = "Additional linked records will be checked after the initial categories load.";
     private string PatientHtml = "", Filter = "";
     private string? PatientError;
     private bool Loading = true, ShowEmpty, LoadInitialCategories;
@@ -73,7 +76,7 @@
         s.ResourceType == section.ResourceType || (section.ResourceType == "DocumentReference" && s.ResourceType == "Observation"));
     private string Status(PatientResourceSection section) => SectionSources(section).Any(s => s.Error is not null) ? $"{section.Count} · incomplete" :
         SectionSources(section).Any(s => s.Loading) ? $"{section.Count} · loading" :
-        SectionSources(section).Any(s => !s.Loaded) ? $"{section.Count} · not loaded" :
+        SectionSources(section).Any(s => !s.Loaded) ? (section.Count > 0 ? $"{section.Count} · category not searched" : "Not loaded") :
         SectionSources(section).Any(s => s.HasMore) ? $"{section.Count}+" : section.Count.ToString();
     protected override Task OnParametersSetAsync() => ReloadAsync();
     private async Task ReloadAsync()
@@ -81,6 +84,8 @@
         Request?.Cancel(); Request?.Dispose();
         Request = new CancellationTokenSource();
         var token = Request.Token;
+        EnrichedResources = [];
+        EnrichmentStatus = "Additional linked records will be checked after the initial categories load.";
         Loading = true; LoadInitialCategories = false; PatientError = null; PatientHtml = ""; Sections = []; Hidden.Clear();
         Sources = FhirService.PatientResourceTypes.Split(' ').ToDictionary(t => t, t => new PatientResourceLoad(t));
         try
@@ -102,16 +107,42 @@
     {
         if (!LoadInitialCategories) return;
         LoadInitialCategories = false;
+        var token = Request!.Token;
+        var patientId = PatientId;
+        var sources = Sources;
         await Task.WhenAll(new[] { "Encounter", "Condition", "AllergyIntolerance", "MedicationRequest", "MedicationStatement", "DiagnosticReport", "DocumentReference", "Observation", "Procedure", "Immunization" }
-            .Select(t => LoadSourceAsync(Sources[t])));
+            .Select(t => LoadSourceAsync(sources[t])));
+        if (token.IsCancellationRequested) return;
+        EnrichmentStatus = "Checking for additional linked records in the background…";
+        StateHasChanged();
+        try
+        {
+            var complete = await FhirService.EnrichPatientResourcesAsync(patientId, sections =>
+            {
+                if (!token.IsCancellationRequested)
+                {
+                    EnrichedResources = sections.SelectMany(s => s.Resources).ToList();
+                    UpdateSections();
+                    StateHasChanged();
+                }
+                return Task.CompletedTask;
+            }, token, async budgetToken =>
+            {
+                // A foreground request may finish the page already in flight, but no new
+                // enrichment page starts while any section is queued or loading.
+                while (sources.Values.Any(s => s.Loading)) await Task.Delay(100, budgetToken);
+            }, LoadSlots);
+            if (!token.IsCancellationRequested)
+                EnrichmentStatus = complete ? "Additional linked-record check finished. Counts reflect records received."
+                    : "Additional linked-record check is incomplete. Any extra records received have been kept.";
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        finally { if (!token.IsCancellationRequested) StateHasChanged(); }
     }
     private void UpdateSections()
     {
         var previous = Sections.ToDictionary(s => s.ResourceType);
-        System.Xml.Linq.XNamespace f = "http://hl7.org/fhir";
-        var resources = Sources.Values.SelectMany(s => s.Resources).DistinctBy(r => r.Name.LocalName + "/" + (r.Element(f + "id")?.Attribute("value")?.Value ?? r.ToString()));
-        var bundle = new System.Xml.Linq.XDocument(new System.Xml.Linq.XElement(f + "Bundle", resources.Select(r => new System.Xml.Linq.XElement(f + "entry", new System.Xml.Linq.XElement(f + "resource", r)))));
-        var sections = PatientSectionGrouping.Build(bundle).ToList();
+        var sections = PatientSectionGrouping.Merge(Sources.Values.SelectMany(s => s.Resources), EnrichedResources).ToList();
         foreach (var type in Sources.Keys)
             if (!sections.Any(s => s.ResourceType == type)) sections.Add(new(type, []));
         for (var i = 0; i < sections.Count; i++)

@@ -60,7 +60,7 @@ For signed-in users, **Save to patient list** appears below associated providers
 
 ## Patient reports
 
-Patient demographics load first. The report searches each resource type independently through `Patient/{id}/{type}?_count=50`, with at most three concurrent requests. Common clinical categories load one server page initially; other categories load when opened. Each category has its own continuation and retry controls, so a failed category does not stop the others. Counts distinguish unloaded, incomplete, and fully retrieved categories. Sections display **ten records per page**. Multiline observations still appear with documents. Included supporting resources are retained, and other linked records open on demand through record links; the report does not recursively collect all resources that `$everything` might return.
+Patient demographics load first. The report searches each resource type independently through `Patient/{id}/{type}?_count=50`, with at most three concurrent requests. Common clinical categories load one server page initially; other categories load when opened. Each category has its own continuation and retry controls, so a failed category does not stop the others. Counts distinguish unloaded, incomplete, and fully retrieved categories. Sections display **ten records per page**. Multiline observations still appear with documents. Included supporting resources are retained, and other linked records open on demand through record links. After the initial categories finish, a single best-effort `$everything` enrichment pass runs in the background with a **20-second overall budget**. It merges missing resource identities, keeps successfully received pages on timeout or failure, and displays whether the check finished or is incomplete. Enrichment shares the three-request limit and waits between pages while categories are queued or loading. It does not change category cursors or claim that unloaded categories have been searched.
 
 Counts describe records available so far and can be partial while loading is active or paused, or after a failure. Previously loaded content remains visible with an explicit incomplete-results message if loading fails; **Retry report** restarts loading. After discovery completes, **Show types with no returned records** makes empty patient-compartment categories available. Zero records returned is not proof of clinical absence.
 
@@ -189,7 +189,7 @@ Core queries include:
 - `Encounter?_sort=-date&_include=Encounter:patient` for recent-patient discovery.
 - `Patient?identifier=...` and `Patient?family=...&given=...` for patient searches.
 - `Patient/{id}/{type}?_count=50` for independent patient-report categories.
-- `Patient/{id}/$everything` remains in provider-association and legacy aggregate helpers.
+- `Patient/{id}/$everything` for bounded background enrichment, provider-association and legacy aggregate helpers.
 - `Encounter?patient=...&_sort=-date` for patient encounter history.
 - `Observation?encounter:Encounter=...&_summary=count` for observation counts.
 - `Observation?encounter:Encounter=...&_sort=-date` for encounter observations.
