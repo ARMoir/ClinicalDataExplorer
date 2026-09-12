@@ -31,12 +31,15 @@ public sealed class ApplicationSettingsService
     public async Task SaveAsync(ApplicationSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
+        ValidateRequestSettings(settings);
 
         var normalized = new ApplicationSettings
         {
             ProductName = string.IsNullOrWhiteSpace(settings.ProductName) ? "Clinical Data Explorer" : settings.ProductName.Trim(),
             FacilityName = string.IsNullOrWhiteSpace(settings.FacilityName) ? "Your Facility" : settings.FacilityName.Trim(),
             FhirBaseUrl = NormalizeFhirBaseUrl(settings.FhirBaseUrl),
+            FhirHttpTimeoutSeconds = settings.FhirHttpTimeoutSeconds,
+            FhirRequestPageSize = settings.FhirRequestPageSize,
             AuthenticationMode = NormalizeAuthenticationMode(settings.AuthenticationMode),
             WindowsDomain = NormalizeWindowsDomain(settings.WindowsDomain),
             AllUsersAreAdministrators = settings.AllUsersAreAdministrators,
@@ -110,6 +113,11 @@ public sealed class ApplicationSettingsService
         {
             var json = File.ReadAllText(_settingsPath);
             var settings = JsonSerializer.Deserialize<ApplicationSettings>(json);
+            if (settings is not null)
+            {
+                if (settings.FhirHttpTimeoutSeconds is < 1 or > 3600) settings.FhirHttpTimeoutSeconds = 30;
+                if (settings.FhirRequestPageSize is < 1 or > 1000) settings.FhirRequestPageSize = 50;
+            }
             return settings ?? new ApplicationSettings();
         }
         catch
@@ -117,6 +125,14 @@ public sealed class ApplicationSettingsService
             // A bad settings file should not prevent the viewer from starting.
             return new ApplicationSettings();
         }
+    }
+
+    private static void ValidateRequestSettings(ApplicationSettings settings)
+    {
+        if (settings.FhirHttpTimeoutSeconds is < 1 or > 3600)
+            throw new InvalidOperationException("HTTP timeout must be between 1 and 3600 seconds.");
+        if (settings.FhirRequestPageSize is < 1 or > 1000)
+            throw new InvalidOperationException("Request page size must be between 1 and 1000 records.");
     }
 
     private static string NormalizeFhirBaseUrl(string? value)

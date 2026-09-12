@@ -16,6 +16,12 @@ public sealed class ApplicationSettings
     [StringLength(2048)]
     public string FhirBaseUrl { get; set; } = "http://summittest:8080/";
 
+    [Range(1, 3600)]
+    public int FhirHttpTimeoutSeconds { get; set; } = 30;
+
+    [Range(1, 1000)]
+    public int FhirRequestPageSize { get; set; } = 50;
+
     /// <summary>
     /// Current supported values: Windows or Disabled.
     /// The string setting intentionally leaves room for OIDC and Local later.
@@ -49,6 +55,8 @@ public sealed class ApplicationSettings
         ProductName = ProductName,
         FacilityName = FacilityName,
         FhirBaseUrl = FhirBaseUrl,
+        FhirHttpTimeoutSeconds = FhirHttpTimeoutSeconds,
+        FhirRequestPageSize = FhirRequestPageSize,
         AuthenticationMode = AuthenticationMode,
         WindowsDomain = WindowsDomain,
         AllUsersAreAdministrators = AllUsersAreAdministrators,

@@ -132,6 +132,18 @@
                 <div id="fhirBaseUrl-error"><ValidationMessage For="@(() => Form.FhirBaseUrl)" /></div>
                 <small>Use the server root or service base path, for example http://summittest:8080/ or https://server.example.org/fhir/.</small>
             </div>
+            <div class="settings-field">
+                <label for="fhirHttpTimeoutSeconds">HTTP timeout (seconds)</label>
+                <InputNumber id="fhirHttpTimeoutSeconds" aria-describedby="fhirHttpTimeoutSeconds-help fhirHttpTimeoutSeconds-error" @bind-Value="Form.FhirHttpTimeoutSeconds" min="1" max="3600" />
+                <div id="fhirHttpTimeoutSeconds-error"><ValidationMessage For="@(() => Form.FhirHttpTimeoutSeconds)" /></div>
+                <small id="fhirHttpTimeoutSeconds-help">Time allowed for each server request, from 1 to 3600 seconds. Default: 30. Operations with an overall time budget may finish sooner.</small>
+            </div>
+            <div class="settings-field">
+                <label for="fhirRequestPageSize">Request page size (_count)</label>
+                <InputNumber id="fhirRequestPageSize" aria-describedby="fhirRequestPageSize-help fhirRequestPageSize-error" @bind-Value="Form.FhirRequestPageSize" min="1" max="1000" />
+                <div id="fhirRequestPageSize-error"><ValidationMessage For="@(() => Form.FhirRequestPageSize)" /></div>
+                <small id="fhirRequestPageSize-help">Requested records per page for patient report categories, streamed patient records, and identifier searches. From 1 to 1000; default: 50. The server controls continuation pages.</small>
+            </div>
         </div>
     </section>
 

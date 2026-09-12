@@ -20,7 +20,7 @@ public sealed partial class FhirService
         source.Server = baseUri;
         source.PatientId = id;
         if (!source.HasMore) return;
-        var uri = source.Next ?? new Uri(baseUri, $"Patient/{Uri.EscapeDataString(id)}/{source.ResourceType}?_count=50&_format=xml");
+        var uri = source.Next ?? new Uri(baseUri, $"Patient/{Uri.EscapeDataString(id)}/{source.ResourceType}?_count={settingsService.Current.FhirRequestPageSize}&_format=xml");
         if (source.Pages.Count >= 200 || source.Pages.Contains(uri.AbsoluteUri))
             throw new InvalidOperationException("This section exceeded the paging safety limit.");
         var document = ParseDocument(await GetXmlAsync(uri, baseUri, cancellationToken));

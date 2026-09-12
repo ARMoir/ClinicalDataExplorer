@@ -35,7 +35,8 @@ builder.Services.AddHttpClient("Fhir", client =>
     client.DefaultRequestHeaders.Accept.Clear();
     client.DefaultRequestHeaders.Accept.Add(
         new MediaTypeWithQualityHeaderValue("application/fhir+xml"));
-    client.Timeout = TimeSpan.FromSeconds(30);
+    // FhirService applies the current timeout separately to each request.
+    client.Timeout = Timeout.InfiniteTimeSpan;
 }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
 {
     // Redirects must not bypass FhirService's configured-server boundary.

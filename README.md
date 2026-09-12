@@ -60,7 +60,7 @@ For signed-in users, **Save to patient list** appears below associated providers
 
 ## Patient reports
 
-Patient demographics load first. The report searches each resource type independently through `Patient/{id}/{type}?_count=50`, with at most three concurrent requests. Common clinical categories load one server page initially; other categories load when opened. Each category has its own continuation and retry controls, so a failed category does not stop the others. Counts distinguish unloaded, incomplete, and fully retrieved categories. Sections display **ten records per page**. Multiline observations still appear with documents. Included supporting resources are retained, and other linked records open on demand through record links. After the initial categories finish, a single best-effort `$everything` enrichment pass runs in the background with a **20-second overall budget**. It merges missing resource identities, keeps successfully received pages on timeout or failure, and displays whether the check finished or is incomplete. Enrichment shares the three-request limit and waits between pages while categories are queued or loading. It does not change category cursors or claim that unloaded categories have been searched.
+Patient demographics load first. The report searches each resource type independently through `Patient/{id}/{type}?_count={configured page size}` (default 50), with at most three concurrent requests. Common clinical categories load one server page initially; other categories load when opened. Each category has its own continuation and retry controls, so a failed category does not stop the others. Counts distinguish unloaded, incomplete, and fully retrieved categories. Sections display **ten records per page**. Multiline observations still appear with documents. Included supporting resources are retained, and other linked records open on demand through record links. After the initial categories finish, a single best-effort `$everything` enrichment pass runs in the background with a **20-second overall budget**. It merges missing resource identities, keeps successfully received pages on timeout or failure, and displays whether the check finished or is incomplete. Enrichment shares the three-request limit and waits between pages while categories are queued or loading. It does not change category cursors or claim that unloaded categories have been searched.
 
 Counts describe records available so far and can be partial while loading is active or paused, or after a failure. Previously loaded content remains visible with an explicit incomplete-results message if loading fails; **Retry report** restarts loading. After discovery completes, **Show types with no returned records** makes empty patient-compartment categories available. Zero records returned is not proof of clinical absence.
 
@@ -131,7 +131,7 @@ Views load on demand and offer refresh and continuation-based paging where appli
 Settings requires administrator access. Configure:
 
 - Product and facility names.
-- FHIR base URL.
+- FHIR base URL, HTTP timeout (1–3600 seconds; default 30), and request page size (1–1000 records; default 50). The page size controls patient report categories, streamed patient records, and identifier searches that previously requested 50 records. Server continuation URLs are followed unchanged; other query limits and display page sizes retain their existing values. Timeout and page-size changes apply to subsequent requests without restarting. Overall operation budgets, including the 20-second enrichment budget, still apply.
 - Facility logo: PNG, JPG, or WebP, up to 5 MB; upload or remove it.
 - Primary and secondary colors, with branding preview.
 - Authentication mode and optional Windows domain restriction.
@@ -144,6 +144,8 @@ Settings persist in `App_Data/application-settings.json`. Example:
   "ProductName": "Clinical Data Explorer",
   "FacilityName": "Your Facility",
   "FhirBaseUrl": "http://summittest:8080/",
+  "FhirHttpTimeoutSeconds": 30,
+  "FhirRequestPageSize": 50,
   "AuthenticationMode": "Windows",
   "WindowsDomain": "",
   "AllUsersAreAdministrators": true,
@@ -188,7 +190,7 @@ Core queries include:
 
 - `Encounter?_sort=-date&_include=Encounter:patient` for recent-patient discovery.
 - `Patient?identifier=...` and `Patient?family=...&given=...` for patient searches.
-- `Patient/{id}/{type}?_count=50` for independent patient-report categories.
+- `Patient/{id}/{type}?_count={configured page size}` (default 50) for independent patient-report categories.
 - `Patient/{id}/$everything` for bounded background enrichment, provider-association and legacy aggregate helpers.
 - `Encounter?patient=...&_sort=-date` for patient encounter history.
 - `Observation?encounter:Encounter=...&_summary=count` for observation counts.

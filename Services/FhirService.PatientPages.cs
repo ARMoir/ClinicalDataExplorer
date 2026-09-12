@@ -13,7 +13,7 @@ public sealed partial class FhirService
     {
         var baseUri = GetBaseUri();
         Uri? next = new(baseUri, "Patient/" + Uri.EscapeDataString(RequireId(patientId, "patient")) +
-            "/$everything?_count=50&_format=xml");
+            $"/$everything?_count={settingsService.Current.FhirRequestPageSize}&_format=xml");
         var combined = new XElement(Fhir + "Bundle");
         var seenPages = new HashSet<string>(StringComparer.Ordinal);
         var seenRecords = new HashSet<string>(StringComparer.Ordinal);

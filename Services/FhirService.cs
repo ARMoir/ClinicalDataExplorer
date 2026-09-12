@@ -200,7 +200,7 @@ public sealed partial class FhirService(
         if (string.IsNullOrWhiteSpace(identifier))
             return [];
 
-        var url = "Patient?identifier=" + Uri.EscapeDataString(identifier.Trim()) + "&_count=50&_format=xml";
+        var url = "Patient?identifier=" + Uri.EscapeDataString(identifier.Trim()) + $"&_count={settingsService.Current.FhirRequestPageSize}&_format=xml";
         return ParsePatients(await GetXmlAsync(url, cancellationToken));
     }
 
@@ -409,6 +409,9 @@ public sealed partial class FhirService(
             throw new InvalidOperationException("The FHIR server returned a paging link outside the configured server.");
 
         var client = httpClientFactory.CreateClient("Fhir");
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(settingsService.Current.FhirHttpTimeoutSeconds));
+        cancellationToken = timeout.Token;
         using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
         request.Headers.Accept.ParseAdd("application/fhir+xml");
         // Microsoft FHIR Server otherwise handles unsupported searches leniently.
