@@ -409,9 +409,33 @@ public sealed partial class FhirService(
             throw new InvalidOperationException("The FHIR server returned a paging link outside the configured server.");
 
         var client = httpClientFactory.CreateClient("Fhir");
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(settingsService.Current.FhirHttpTimeoutSeconds));
-        cancellationToken = timeout.Token;
+        var settings = settingsService.Current;
+        for (var attempt = 0; ; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(settings.FhirHttpTimeoutSeconds));
+            try
+            {
+                return await ReadXmlAttemptAsync(client, requestUri, timeout.Token);
+            }
+            catch (OperationCanceledException) when (
+                timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested &&
+                attempt < settings.FhirTimeoutRetryCount)
+            {
+                // Retry only our per-attempt timeout, never caller cancellation.
+            }
+            catch (HttpRequestException ex) when (
+                ex.StatusCode is System.Net.HttpStatusCode.RequestTimeout or System.Net.HttpStatusCode.GatewayTimeout &&
+                !cancellationToken.IsCancellationRequested && attempt < settings.FhirTimeoutRetryCount)
+            {
+                // The endpoint or its gateway reported a timeout.
+            }
+        }
+    }
+
+    private static async Task<string> ReadXmlAttemptAsync(HttpClient client, Uri requestUri, CancellationToken cancellationToken)
+    {
         using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
         request.Headers.Accept.ParseAdd("application/fhir+xml");
         // Microsoft FHIR Server otherwise handles unsupported searches leniently.

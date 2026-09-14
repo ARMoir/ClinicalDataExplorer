@@ -38,6 +38,8 @@ internal sealed class FhirTestContext : IDisposable, IHttpClientFactory
         return Client;
     }
 
+    public ApplicationSettingsService ReloadSettings() => new(new TestEnvironment(root.FullName));
+
     public void Dispose()
     {
         Client.Dispose();

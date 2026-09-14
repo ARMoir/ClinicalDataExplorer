@@ -39,6 +39,7 @@ public sealed class ApplicationSettingsService
             FacilityName = string.IsNullOrWhiteSpace(settings.FacilityName) ? "Your Facility" : settings.FacilityName.Trim(),
             FhirBaseUrl = NormalizeFhirBaseUrl(settings.FhirBaseUrl),
             FhirHttpTimeoutSeconds = settings.FhirHttpTimeoutSeconds,
+            FhirTimeoutRetryCount = settings.FhirTimeoutRetryCount,
             FhirRequestPageSize = settings.FhirRequestPageSize,
             AuthenticationMode = NormalizeAuthenticationMode(settings.AuthenticationMode),
             WindowsDomain = NormalizeWindowsDomain(settings.WindowsDomain),
@@ -116,6 +117,7 @@ public sealed class ApplicationSettingsService
             if (settings is not null)
             {
                 if (settings.FhirHttpTimeoutSeconds is < 1 or > 3600) settings.FhirHttpTimeoutSeconds = 30;
+                if (settings.FhirTimeoutRetryCount is < 0 or > 10) settings.FhirTimeoutRetryCount = 0;
                 if (settings.FhirRequestPageSize is < 1 or > 1000) settings.FhirRequestPageSize = 50;
             }
             return settings ?? new ApplicationSettings();
@@ -129,6 +131,8 @@ public sealed class ApplicationSettingsService
 
     private static void ValidateRequestSettings(ApplicationSettings settings)
     {
+        if (settings.FhirTimeoutRetryCount is < 0 or > 10)
+            throw new InvalidOperationException("Automatic timeout retries must be between 0 and 10.");
         if (settings.FhirHttpTimeoutSeconds is < 1 or > 3600)
             throw new InvalidOperationException("HTTP timeout must be between 1 and 3600 seconds.");
         if (settings.FhirRequestPageSize is < 1 or > 1000)

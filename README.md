@@ -131,7 +131,7 @@ Views load on demand and offer refresh and continuation-based paging where appli
 Settings requires administrator access. Configure:
 
 - Product and facility names.
-- FHIR base URL, HTTP timeout (1–3600 seconds; default 30), and request page size (1–1000 records; default 50). The page size controls patient report categories, streamed patient records, and identifier searches that previously requested 50 records. Server continuation URLs are followed unchanged; other query limits and display page sizes retain their existing values. Timeout and page-size changes apply to subsequent requests without restarting. Overall operation budgets, including the 20-second enrichment budget, still apply.
+- FHIR base URL, HTTP timeout (1–3600 seconds; default 30), and request page size (1–1000 records; default 50). The page size controls patient report categories, streamed patient records, and identifier searches that previously requested 50 records. Server continuation URLs are followed unchanged; other query limits and display page sizes retain their existing values. Automatic timeout retries can be set from 0 to 10 (default 0, disabled), counting additional attempts after the initial request. Request timeouts and HTTP 408/504 responses are retried; other errors are not. Each attempt gets a fresh HTTP timeout, and caller cancellation stops retries. Timeout, retry-count, and page-size changes apply to subsequent requests without restarting. Overall operation budgets, including the 20-second enrichment budget, still apply.
 - Facility logo: PNG, JPG, or WebP, up to 5 MB; upload or remove it.
 - Primary and secondary colors, with branding preview.
 - Authentication mode and optional Windows domain restriction.

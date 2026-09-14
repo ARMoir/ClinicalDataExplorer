@@ -139,6 +139,12 @@
                 <small id="fhirHttpTimeoutSeconds-help">Time allowed for each server request, from 1 to 3600 seconds. Default: 30. Operations with an overall time budget may finish sooner.</small>
             </div>
             <div class="settings-field">
+                <label for="fhirTimeoutRetryCount">Automatic timeout retries</label>
+                <InputNumber id="fhirTimeoutRetryCount" aria-describedby="fhirTimeoutRetryCount-help fhirTimeoutRetryCount-error" @bind-Value="Form.FhirTimeoutRetryCount" min="0" max="10" />
+                <div id="fhirTimeoutRetryCount-error"><ValidationMessage For="@(() => Form.FhirTimeoutRetryCount)" /></div>
+                <small id="fhirTimeoutRetryCount-help">Additional attempts after a request timeout or HTTP 408/504 response, from 0 to 10. Default: 0 (disabled). Each attempt gets the HTTP timeout above; cancellation and overall operation time limits still apply.</small>
+            </div>
+            <div class="settings-field">
                 <label for="fhirRequestPageSize">Request page size (_count)</label>
                 <InputNumber id="fhirRequestPageSize" aria-describedby="fhirRequestPageSize-help fhirRequestPageSize-error" @bind-Value="Form.FhirRequestPageSize" min="1" max="1000" />
                 <div id="fhirRequestPageSize-error"><ValidationMessage For="@(() => Form.FhirRequestPageSize)" /></div>

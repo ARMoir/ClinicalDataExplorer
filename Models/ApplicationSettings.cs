@@ -19,6 +19,9 @@ public sealed class ApplicationSettings
     [Range(1, 3600)]
     public int FhirHttpTimeoutSeconds { get; set; } = 30;
 
+    [Range(0, 10)]
+    public int FhirTimeoutRetryCount { get; set; } = 0;
+
     [Range(1, 1000)]
     public int FhirRequestPageSize { get; set; } = 50;
 
@@ -56,6 +59,7 @@ public sealed class ApplicationSettings
         FacilityName = FacilityName,
         FhirBaseUrl = FhirBaseUrl,
         FhirHttpTimeoutSeconds = FhirHttpTimeoutSeconds,
+        FhirTimeoutRetryCount = FhirTimeoutRetryCount,
         FhirRequestPageSize = FhirRequestPageSize,
         AuthenticationMode = AuthenticationMode,
         WindowsDomain = WindowsDomain,
