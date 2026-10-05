@@ -48,12 +48,13 @@ public sealed partial class FhirService(
         if (!ResourcePresentation.IsReference(resourceType))
             throw new ArgumentException("This record category belongs in the patient workspace.", nameof(resourceType));
         var baseUri = GetBaseUri();
-        var document = ParseDocument(await GetXmlAsync(next ?? new Uri(baseUri, resourceType + "?_count=10&_format=xml"), baseUri, cancellationToken));
+        var requestUri = next ?? new Uri(baseUri, resourceType + "?_count=10&_format=xml");
+        var document = ParseDocument(await GetXmlAsync(requestUri, baseUri, cancellationToken));
         EnsureBundle(document);
         var entries = document.Root!.Elements(Fhir + "entry").Where(e => Value(e.Element(Fhir + "search"), "mode") != "outcome").ToList();
         if (entries.Any(e => e.Element(Fhir + "resource")?.Elements().SingleOrDefault()?.Name != Fhir + resourceType))
             throw new InvalidOperationException("The server returned records outside the requested reference category.");
-        var nextUri = GetNextPageUri(document, baseUri);
+        var nextUri = GetNextPageUri(document, requestUri);
         if (nextUri is not null && !IsWithinConfiguredServer(nextUri, baseUri))
             throw new InvalidOperationException("The server returned a page outside the configured connection.");
         return new(document.ToString(SaveOptions.DisableFormatting), nextUri, entries.Count,
@@ -135,7 +136,7 @@ public sealed partial class FhirService(
                 };
             }
 
-            nextUri = GetNextPageUri(document, baseUri);
+            nextUri = GetNextPageUri(document, nextUri);
         }
 
     }
@@ -163,7 +164,7 @@ public sealed partial class FhirService(
             EnsureBundle(document);
             foreach (var patient in ParsePatientResources(document))
                 if (seen.Add(patient.Id)) yield return patient;
-            next = GetNextPageUri(document, baseUri);
+            next = GetNextPageUri(document, next);
         }
     }
 
@@ -225,7 +226,7 @@ public sealed partial class FhirService(
 
             var document = ParseDocument(await GetXmlAsync(nextUri, baseUri, cancellationToken));
             encounters.AddRange(ParseEncounters(document));
-            nextUri = GetNextPageUri(document, baseUri);
+            nextUri = GetNextPageUri(document, nextUri);
         }
 
         return await AddObservationCountsAsync(encounters, baseUri, cancellationToken);
@@ -251,7 +252,7 @@ public sealed partial class FhirService(
 
             var document = ParseDocument(await GetXmlAsync(nextUri, baseUri, cancellationToken));
             observations.AddRange(ReadResources(document, "Observation").Select(ToObservation));
-            nextUri = GetNextPageUri(document, baseUri);
+            nextUri = GetNextPageUri(document, nextUri);
         }
 
         return observations;
@@ -363,7 +364,7 @@ public sealed partial class FhirService(
                     count++;
             }
             if (onPage is not null) await onPage(new XDocument(new XElement(combined)));
-            nextUri = GetNextPageUri(document, baseUri);
+            nextUri = GetNextPageUri(document, nextUri);
         }
 
         combined.AddFirst(new XElement(Fhir + "total", new XAttribute("value", count)));
@@ -703,12 +704,12 @@ public sealed partial class FhirService(
         return EmptyToNull(Value(coding, "display")) ?? EmptyToNull(Value(coding, "code")) ?? string.Empty;
     }
 
-    private static Uri? GetNextPageUri(XDocument document, Uri baseUri)
+    private static Uri? GetNextPageUri(XDocument document, Uri requestUri)
     {
         var next = document.Root?.Elements(Fhir + "link")
             .FirstOrDefault(link => Value(link, "relation") == "next");
         var url = Value(next, "url");
-        return string.IsNullOrWhiteSpace(url) ? null : new Uri(baseUri, url);
+        return string.IsNullOrWhiteSpace(url) ? null : new Uri(requestUri, url);
     }
 
     private static XDocument ParseDocument(string xml)

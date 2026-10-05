@@ -34,7 +34,7 @@ public sealed partial class FhirService
                 if (++entries > 10000) throw new InvalidOperationException("FHIR report exceeded the 10,000-record safety limit.");
                 combined.Add(new XElement(entry));
             }
-            next = GetNextPageUri(document, baseUri);
+            next = GetNextPageUri(document, next);
             var snapshot = new XDocument(new XElement(combined));
             // Resolve included providers without starting unbounded extra reads.
             await ResolvePractitionerReferencesAsync(snapshot, cancellationToken, fetchMissing: false);

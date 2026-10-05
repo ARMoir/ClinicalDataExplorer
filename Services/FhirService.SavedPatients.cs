@@ -21,7 +21,7 @@ public sealed partial class FhirService
             EnsureBundle(document);
             var encounter = ParseEncounters(document).FirstOrDefault();
             if (encounter is not null) return (patient, encounter);
-            next = GetNextPageUri(document, baseUri);
+            next = GetNextPageUri(document, next);
         }
         return (patient, null);
     }

@@ -7,7 +7,7 @@ public sealed partial class FhirService
 {
     public const string PatientResourceTypes = "Account AdverseEvent AllergyIntolerance Appointment AppointmentResponse AuditEvent Basic BodyStructure CarePlan CareTeam ChargeItem Claim ClaimResponse ClinicalImpression Communication CommunicationRequest Composition Condition Consent Coverage CoverageEligibilityRequest CoverageEligibilityResponse DetectedIssue DeviceRequest DeviceUseStatement DiagnosticReport DocumentManifest DocumentReference Encounter EnrollmentRequest EpisodeOfCare ExplanationOfBenefit FamilyMemberHistory Flag Goal Group ImagingStudy Immunization ImmunizationEvaluation ImmunizationRecommendation Invoice List MeasureReport Media MedicationAdministration MedicationDispense MedicationRequest MedicationStatement MolecularSequence NutritionOrder Observation Person Procedure Provenance QuestionnaireResponse RelatedPerson RequestGroup ResearchSubject RiskAssessment Schedule ServiceRequest Specimen SupplyDelivery SupplyRequest VisionPrescription";
 
-    // Each source owns its cursor. Commit only successful pages so a failed request can be retried.
+    // Failed requests can be retried; rejected continuations stop paging.
     public async Task LoadPatientResourcePageAsync(string patientId, PatientResourceLoad source,
         CancellationToken cancellationToken = default)
     {
@@ -25,9 +25,6 @@ public sealed partial class FhirService
             throw new InvalidOperationException("This section exceeded the paging safety limit.");
         var document = ParseDocument(await GetXmlAsync(uri, baseUri, cancellationToken));
         EnsureBundle(document);
-        var next = GetNextPageUri(document, baseUri);
-        if (next is not null && (!IsWithinConfiguredServer(next, baseUri) || next == uri || source.Pages.Contains(next.AbsoluteUri)))
-            throw new InvalidOperationException("The server returned an invalid or repeated continuation page.");
         await ResolvePractitionerReferencesAsync(document, cancellationToken, fetchMissing: false);
         var resources = source.Resources.Concat(document.Root!.Elements(Fhir + "entry")
             .Elements(Fhir + "resource").Elements().Where(r => r.Name != Fhir + "OperationOutcome"))
@@ -36,8 +33,25 @@ public sealed partial class FhirService
         if (resources.Count > 10000) throw new InvalidOperationException("This section exceeded the 10,000-record safety limit.");
         cancellationToken.ThrowIfCancellationRequested();
         source.Resources = resources;
-        source.Next = next;
         source.Loaded = true;
+        // Keep successful records even when the continuation is unusable.
+        source.Next = null;
+        Uri? next;
+        try { next = GetNextPageUri(document, uri); }
+        catch (UriFormatException ex)
+        {
+            throw new InvalidOperationException("The server returned a malformed continuation URL.", ex);
+        }
+        if (next is not null)
+        {
+            if (!IsWithinConfiguredServer(next, baseUri))
+                throw new InvalidOperationException("The server returned a continuation URL outside the configured server.");
+            if (next == uri)
+                throw new InvalidOperationException("The server returned a continuation URL pointing to the current page.");
+            if (source.Pages.Contains(next.AbsoluteUri))
+                throw new InvalidOperationException("The server returned a continuation URL pointing to a previously visited page.");
+        }
         source.Pages.Add(uri.AbsoluteUri);
+        source.Next = next;
     }
 }

@@ -82,7 +82,7 @@ public sealed partial class FhirService
                     ResourceChronology.Date(report), "/reports/view?reportId=" + Uri.EscapeDataString(id), providers, status, error)
                 { Patient = patient, PatientUrl = patientUrl, PatientError = patientError };
             }
-            next = GetNextPageUri(document, baseUri);
+            next = GetNextPageUri(document, next);
         }
     }
 

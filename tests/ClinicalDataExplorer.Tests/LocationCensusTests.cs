@@ -15,15 +15,17 @@ public sealed class LocationCensusTests
         $"<location><location><reference value='{id}'/></location><status value='{status}'/>{period}</location>";
     private const string Patient = "<entry><resource><Patient><id value='p1'/><name><text value='Test Patient'/></name></Patient></resource></entry>";
 
-    [Fact]
-    public async Task Census_reads_all_pages_and_deduplicates_encounters_and_assignments()
+    [Theory]
+    [InlineData("Location?cursor=2", "Encounter?cursor=2")]
+    [InlineData("?cursor=2", "?cursor=2")]
+    public async Task Census_reads_all_pages_and_deduplicates_encounters_and_assignments(string locationNext, string encounterNext)
     {
         var encounter = Encounter("e1", "in-progress", Assignment("Location/a") + Assignment(BaseUrl + "Location/a"));
         using var handler = new ScriptedHandler(
-            request => { Assert.Equal("/r4/Location", request.RequestUri!.AbsolutePath); return ScriptedHandler.Xml(Bundle(Location("a"), "Location?cursor=2")); },
-            _ => ScriptedHandler.Xml(Bundle(Location("b"))),
-            request => { Assert.Contains("status=arrived,triaged,in-progress,onleave", Uri.UnescapeDataString(request.RequestUri!.Query)); return ScriptedHandler.Xml(Bundle(encounter, "Encounter?cursor=2")); },
-            _ => ScriptedHandler.Xml(Bundle(encounter + Patient)));
+            request => { Assert.Equal("/r4/Location", request.RequestUri!.AbsolutePath); return ScriptedHandler.Xml(Bundle(Location("a"), locationNext)); },
+            request => { Assert.Equal("/r4/Location?cursor=2", request.RequestUri!.PathAndQuery); return ScriptedHandler.Xml(Bundle(Location("b"))); },
+            request => { Assert.Contains("status=arrived,triaged,in-progress,onleave", Uri.UnescapeDataString(request.RequestUri!.Query)); return ScriptedHandler.Xml(Bundle(encounter, encounterNext)); },
+            request => { Assert.Equal("/r4/Encounter?cursor=2", request.RequestUri!.PathAndQuery); return ScriptedHandler.Xml(Bundle(encounter + Patient)); });
         using var context = new FhirTestContext(BaseUrl, handler);
         var groups = await context.Service.GetLocationCensusAsync();
         Assert.Equal(2, groups.Count);

@@ -46,7 +46,7 @@ public sealed class PatientResourceSearchTests
     public async Task Separate_cursors_retry_failed_page_without_losing_or_duplicating_records()
     {
         using var handler = new ScriptedHandler(
-            r => { Assert.Equal("/r4/Patient/p1/Observation", r.RequestUri!.AbsolutePath); Assert.Contains("_count=50", r.RequestUri.Query); return ScriptedHandler.Xml(Bundle(Entry("Observation", "o1"), "Patient/p1/Observation?cursor=2")); },
+            r => { Assert.Equal("/r4/Patient/p1/Observation", r.RequestUri!.AbsolutePath); Assert.Contains("_count=50", r.RequestUri.Query); return ScriptedHandler.Xml(Bundle(Entry("Observation", "o1"), "?cursor=2")); },
             r => { Assert.Equal("/r4/Patient/p1/Condition", r.RequestUri!.AbsolutePath); return ScriptedHandler.Xml(Bundle(Entry("Condition", "c1"))); },
             r => ScriptedHandler.Xml("unavailable", HttpStatusCode.ServiceUnavailable),
             r => { Assert.Contains("cursor=2", r.RequestUri!.Query); return ScriptedHandler.Xml(Bundle(Entry("Observation", "o1") + Entry("Observation", "o2"))); });
@@ -68,22 +68,70 @@ public sealed class PatientResourceSearchTests
     }
 
     [Theory]
-    [InlineData("https://other.example/Observation?cursor=2")]
-    [InlineData("Patient/p1/Observation?_count=50&_format=xml")]
-    public async Task Unsafe_or_repeated_next_links_do_not_commit_a_page(string next)
+    [InlineData("https://other.example/Observation?cursor=2", "outside the configured server")]
+    [InlineData("../../../../Observation?cursor=2", "outside the configured server")]
+    [InlineData("?_count=50&_format=xml", "current page")]
+    [InlineData("http://[invalid", "malformed continuation URL")]
+    public async Task Rejected_next_links_preserve_records_and_stop_paging(string next, string reason)
     {
         using var handler = new ScriptedHandler(_ => ScriptedHandler.Xml(Bundle(Entry("Observation", "o1"), next)));
         using var context = new FhirTestContext(BaseUrl, handler);
         var source = new PatientResourceLoad("Observation");
-        await Assert.ThrowsAsync<InvalidOperationException>(() => context.Service.LoadPatientResourcePageAsync("p1", source));
-        Assert.False(source.Loaded);
-        Assert.Empty(source.Resources);
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => context.Service.LoadPatientResourcePageAsync("p1", source));
+        Assert.Contains(reason, error.Message);
+        Assert.True(source.Loaded);
+        Assert.Single(source.Resources);
+        Assert.False(source.HasMore);
+        await context.Service.LoadPatientResourcePageAsync("p1", source);
+        Assert.Equal(1, handler.Calls);
+    }
+
+    [Theory]
+    [InlineData("?_offset=50", "/r4/Patient/p1/ServiceRequest")]
+    [InlineData("ServiceRequest?_offset=50", "/r4/Patient/p1/ServiceRequest")]
+    [InlineData("../ServiceRequest?_offset=50", "/r4/Patient/ServiceRequest")]
+    [InlineData("/r4/ServiceRequest?_offset=50", "/r4/ServiceRequest")]
+    [InlineData("https://fhir.example.test/r4/ServiceRequest?_offset=50", "/r4/ServiceRequest")]
+    public async Task Continuations_resolve_against_the_request_page(string next, string expectedPath)
+    {
+        using var handler = new ScriptedHandler(
+            _ => ScriptedHandler.Xml(Bundle(Entry("ServiceRequest", "s1"), next)),
+            r => {
+                Assert.Equal(expectedPath, r.RequestUri!.AbsolutePath);
+                Assert.Equal("?_offset=50", r.RequestUri.Query);
+                return ScriptedHandler.Xml(Bundle(Entry("ServiceRequest", "s2"), "?_offset=100"));
+            },
+            r => {
+                Assert.Equal(expectedPath, r.RequestUri!.AbsolutePath);
+                Assert.Equal("?_offset=100", r.RequestUri.Query);
+                return ScriptedHandler.Xml(Bundle(Entry("ServiceRequest", "s3")));
+            });
+        using var context = new FhirTestContext(BaseUrl, handler);
+        var source = new PatientResourceLoad("ServiceRequest");
+        while (source.HasMore) await context.Service.LoadPatientResourcePageAsync("p1", source);
+        Assert.Equal(3, source.Resources.Count);
+        Assert.Equal(3, handler.Calls);
     }
 
     [Fact]
+    public async Task Previously_visited_continuation_preserves_the_new_page()
+    {
+        using var handler = new ScriptedHandler(
+            _ => ScriptedHandler.Xml(Bundle(Entry("Observation", "o1"), "?cursor=2")),
+            _ => ScriptedHandler.Xml(Bundle(Entry("Observation", "o2"), "?_count=50&_format=xml")));
+        using var context = new FhirTestContext(BaseUrl, handler);
+        var source = new PatientResourceLoad("Observation");
+        await context.Service.LoadPatientResourcePageAsync("p1", source);
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => context.Service.LoadPatientResourcePageAsync("p1", source));
+        Assert.Contains("previously visited page", error.Message);
+        Assert.Equal(2, source.Resources.Count);
+        Assert.False(source.HasMore);
+        Assert.Equal(2, handler.Calls);
+    }
+    [Fact]
     public async Task Empty_page_with_continuation_is_not_complete_and_other_patient_cannot_reuse_cursor()
     {
-        using var handler = new ScriptedHandler(_ => ScriptedHandler.Xml(Bundle("", "Patient/p1/Condition?cursor=2")));
+        using var handler = new ScriptedHandler(_ => ScriptedHandler.Xml(Bundle("", "?cursor=2")));
         using var context = new FhirTestContext(BaseUrl, handler);
         var source = new PatientResourceLoad("Condition");
         await context.Service.LoadPatientResourcePageAsync("p1", source);

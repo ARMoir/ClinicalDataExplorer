@@ -166,7 +166,6 @@
         {
             await LoadSlots.WaitAsync(token); entered = true;
             await FhirService.LoadPatientResourcePageAsync(patientId, source, token);
-            if (!token.IsCancellationRequested) UpdateSections();
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception ex) { if (!token.IsCancellationRequested) source.Error = ex.Message; }
@@ -174,7 +173,11 @@
         {
             if (entered) LoadSlots.Release();
             source.Loading = false;
-            if (!token.IsCancellationRequested) StateHasChanged();
+            if (!token.IsCancellationRequested)
+            {
+                UpdateSections();
+                StateHasChanged();
+            }
         }
     }
     private async Task LoadMoreAsync(PatientResourceLoad source)
