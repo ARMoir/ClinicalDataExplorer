@@ -5,7 +5,7 @@
 
 <section class="patient-list-card directory-results recent-reports" aria-busy="@(Busy ? "true" : "false")">
     <div class="card-heading-row"><div><h2>@(Diagnostic ? "Recent reports" : "Recent patients")</h2><span>@(Diagnostic ? "Newest reports first" : "Ordered by most recent encounter") · 10 per page</span></div><button data-audit="RecentReports:Refresh" class="secondary-button" disabled="@Busy" @onclick="RefreshAsync">Refresh</button></div>
-    @if (Busy) { <div class="empty-state" role="status">Loading recent records and associated providers…</div> }
+    @if (Busy) { <div class="empty-state" role="status">Loading recent records…</div> }
     @if (Error is not null) { <div class="error-card" role="alert">@Error <button data-audit="RecentReports:Retry" class="secondary-button" disabled="@Busy" @onclick="RefreshAsync">Retry</button></div> }
     @if (!Busy && Current.Count == 0 && Error is null) { <div class="empty-state">No recent records were returned.</div> }
     <div class="patient-list">

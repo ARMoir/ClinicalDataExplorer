@@ -25,7 +25,7 @@ public sealed class PractitionerAssociationTests
                 Entry("<Encounter><id value='e1'/><participant><individual><reference value='https://fhir.example.test/r4/Practitioner/doctor/_history/2'/></individual></participant></Encounter>"))),
             request => { Assert.Equal("/r4/Practitioner/doctor", request.RequestUri!.AbsolutePath); return ScriptedHandler.Xml(Provider); },
             request => { Assert.Equal("/r4/PractitionerRole/role", request.RequestUri!.AbsolutePath); return ScriptedHandler.Xml("<PractitionerRole xmlns='http://hl7.org/fhir'><id value='role'/><practitioner><reference value='Practitioner/doctor'/></practitioner></PractitionerRole>"); });
-        using var context = new FhirTestContext(BaseUrl, handler);
+        using var context = new FhirTestContext(BaseUrl, handler, showProviderAssociations: true);
         var patient = await context.Service.AddPatientPractitionersAsync(Patient);
         var provider = Assert.Single(patient.Practitioners);
         Assert.Equal("Smith, Jane", provider.Name);
@@ -44,7 +44,7 @@ public sealed class PractitionerAssociationTests
         using var handler = new ScriptedHandler(_ => ScriptedHandler.Xml(Bundle(
             Entry("<Patient><id value='p1'/><generalPractitioner><reference value='Practitioner/doctor'/></generalPractitioner></Patient>") +
             Entry(Provider) + Entry("<Practitioner><id value='unrelated'/></Practitioner>"))));
-        using var context = new FhirTestContext(BaseUrl, handler);
+        using var context = new FhirTestContext(BaseUrl, handler, showProviderAssociations: true);
         var result = await context.Service.AddPatientPractitionersAsync(Patient);
         Assert.Equal("Practitioner/doctor", Assert.Single(result.Practitioners).Reference);
         Assert.Equal(1, handler.Calls);
@@ -59,7 +59,7 @@ public sealed class PractitionerAssociationTests
             Entry($"<Practitioner><id value='b'/><name><text value='Dr. Example'/></name>{Id("2")}</Practitioner>") +
             Entry($"<Practitioner><id value='c'/>{Id("1", "Staff ID")}{Id("2")}</Practitioner>");
         using var handler = new ScriptedHandler(_ => ScriptedHandler.Xml(Bundle(entries)));
-        using var context = new FhirTestContext(BaseUrl, handler);
+        using var context = new FhirTestContext(BaseUrl, handler, showProviderAssociations: true);
         var result = await context.Service.AddPatientPractitionersAsync(Patient);
         var provider = Assert.Single(result.Practitioners);
         Assert.Equal("Dr. Example", provider.Name);
@@ -78,7 +78,7 @@ public sealed class PractitionerAssociationTests
         var entries = Entry("<Patient><id value='p1'/><generalPractitioner><reference value='Practitioner/doctor'/></generalPractitioner><generalPractitioner><reference value='Practitioner/other'/></generalPractitioner></Patient>") +
             Entry(Provider) + Entry($"<Practitioner><id value='other'/><name><text value='Smith, Jane'/></name><identifier><system value='{system}'/><value value='{value}'/></identifier></Practitioner>");
         using var handler = new ScriptedHandler(_ => ScriptedHandler.Xml(Bundle(entries)));
-        using var context = new FhirTestContext(BaseUrl, handler);
+        using var context = new FhirTestContext(BaseUrl, handler, showProviderAssociations: true);
         Assert.Equal(2, (await context.Service.AddPatientPractitionersAsync(Patient)).Practitioners.Count);
     }
 
@@ -90,7 +90,7 @@ public sealed class PractitionerAssociationTests
         var bundle = Bundle(Entry("<Patient><id value='p1'/><generalPractitioner><reference value='Practitioner/138072247'/></generalPractitioner></Patient>") +
             Entry($"<Practitioner><id value='138072247'/><name><text value='Dr. Test Pediatri'/></name>{identifier}</Practitioner>"));
         using var handler = new ScriptedHandler(_ => ScriptedHandler.Xml(bundle), _ => ScriptedHandler.Xml(bundle));
-        using var context = new FhirTestContext(BaseUrl, handler);
+        using var context = new FhirTestContext(BaseUrl, handler, showProviderAssociations: true);
         var patient = await context.Service.AddPatientPractitionersAsync(Patient);
         var fallback = Assert.Single(Assert.Single(patient.Practitioners).Identifiers);
         Assert.Equal("138072247", fallback.Value);
@@ -112,7 +112,7 @@ public sealed class PractitionerAssociationTests
         using var handler = new ScriptedHandler(_ => ScriptedHandler.Xml(Bundle(Entry(
             "<Patient><id value='p1'/><generalPractitioner><reference value='Practitioner/doctor'/></generalPractitioner></Patient>"))),
             _ => ScriptedHandler.Xml("<OperationOutcome xmlns='http://hl7.org/fhir'/>", (HttpStatusCode)status));
-        using var context = new FhirTestContext(BaseUrl, handler);
+        using var context = new FhirTestContext(BaseUrl, handler, showProviderAssociations: true);
         var result = await context.Service.AddPatientPractitionersAsync(Patient);
         Assert.False(Assert.Single(result.Practitioners).IsResolved);
         Assert.NotNull(result.PractitionerLookupError);
@@ -124,7 +124,7 @@ public sealed class PractitionerAssociationTests
     {
         using var handler = new ScriptedHandler(_ => ScriptedHandler.Xml(Bundle(Entry(
             "<Patient><id value='p1'/><generalPractitioner><reference value='https://other.example/Practitioner/doctor'/></generalPractitioner></Patient>"))));
-        using var context = new FhirTestContext(BaseUrl, handler);
+        using var context = new FhirTestContext(BaseUrl, handler, showProviderAssociations: true);
         var result = await context.Service.AddPatientPractitionersAsync(Patient);
         Assert.False(Assert.Single(result.Practitioners).IsResolved);
         Assert.NotNull(result.PractitionerLookupError);
@@ -135,7 +135,7 @@ public sealed class PractitionerAssociationTests
     public async Task Unsupported_everything_is_not_reported_as_no_associations()
     {
         using var handler = new ScriptedHandler(_ => ScriptedHandler.Xml("<OperationOutcome xmlns='http://hl7.org/fhir'/>", HttpStatusCode.NotImplemented));
-        using var context = new FhirTestContext(BaseUrl, handler);
+        using var context = new FhirTestContext(BaseUrl, handler, showProviderAssociations: true);
         var result = await context.Service.AddPatientPractitionersAsync(Patient);
         Assert.NotNull(result.PractitionerLookupError);
         Assert.Equal(Patient.Id, result.Id);
@@ -148,7 +148,7 @@ public sealed class PractitionerAssociationTests
         using var handler = new ScriptedHandler(_ => ScriptedHandler.Xml(Bundle(Entry(
             "<ServiceRequest><id value='order'/><requester><reference value='Practitioner/doctor'/><display value='Original display'/></requester></ServiceRequest>"))),
             _ => ScriptedHandler.Xml(Provider));
-        using var context = new FhirTestContext(BaseUrl, handler);
+        using var context = new FhirTestContext(BaseUrl, handler, showProviderAssociations: true);
         var section = Assert.Single(await context.Service.GetPatientResourceSectionsAsync("p1"));
         var html = PatientExplorerTests.Transform("PatientResources", section.PageXml());
         var visible = html.Split("<details", 2)[0];
@@ -164,7 +164,7 @@ public sealed class PractitionerAssociationTests
         using var handler = new ScriptedHandler(_ => ScriptedHandler.Xml(
             "<Encounter xmlns='http://hl7.org/fhir'><id value='e1'/><participant><individual><reference value='Practitioner/doctor'/></individual></participant></Encounter>"),
             _ => ScriptedHandler.Xml(Provider));
-        using var context = new FhirTestContext(BaseUrl, handler);
+        using var context = new FhirTestContext(BaseUrl, handler, showProviderAssociations: true);
         var html = PatientExplorerTests.Transform("EncounterDetails", await context.Service.GetEncounterXmlAsync("e1"));
         Assert.Contains("Smith, Jane", html);
         Assert.Contains("123 [urn:npi]", html);
@@ -176,7 +176,7 @@ public sealed class PractitionerAssociationTests
         var bundle = Bundle(Entry("<DiagnosticReport><id value='r1'/></DiagnosticReport>") +
             Entry("<Observation><id value='o1'/><valueString value='Normal'/><performer><reference value='Practitioner/doctor'/><display value='Old display'/></performer></Observation>") + Entry(Provider));
         using var handler = new ScriptedHandler(_ => ScriptedHandler.Xml(bundle), _ => ScriptedHandler.Xml(bundle));
-        using var context = new FhirTestContext(BaseUrl, handler);
+        using var context = new FhirTestContext(BaseUrl, handler, showProviderAssociations: true);
         var report = await context.Service.GetDiagnosticReportBundleXmlAsync("r1");
         var observations = await context.Service.GetEncounterObservationBundleXmlAsync("e1");
         foreach (var html in new[] { PatientExplorerTests.Transform("DiagnosticReportBundle", report.Xml), PatientExplorerTests.Transform("ObservationList", observations) })

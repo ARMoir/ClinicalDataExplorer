@@ -145,6 +145,11 @@
                 <small id="fhirTimeoutRetryCount-help">Additional attempts after a request timeout or HTTP 408/504 response, from 0 to 10. Default: 0 (disabled). Each attempt gets the HTTP timeout above; cancellation and overall operation time limits still apply.</small>
             </div>
             <div class="settings-field">
+                <label for="showProviderAssociations">Show associated providers</label>
+                <InputCheckbox id="showProviderAssociations" @bind-Value="Form.ShowProviderAssociations" aria-describedby="showProviderAssociations-help" />
+                <small id="showProviderAssociations-help">Look up and display associated providers. This can require additional requests and increase loading time. Off by default. Refresh records after changing this setting.</small>
+            </div>
+            <div class="settings-field">
                 <label for="fhirRequestPageSize">Request page size (_count)</label>
                 <InputNumber id="fhirRequestPageSize" aria-describedby="fhirRequestPageSize-help fhirRequestPageSize-error" @bind-Value="Form.FhirRequestPageSize" min="1" max="1000" />
                 <div id="fhirRequestPageSize-error"><ValidationMessage For="@(() => Form.FhirRequestPageSize)" /></div>

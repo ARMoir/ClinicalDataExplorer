@@ -22,7 +22,7 @@ public sealed class RecentPatientTimeoutTests
             if (request.RequestUri.AbsolutePath.Contains("/p1/")) await Task.Delay(Timeout.Infinite, token);
             return ScriptedHandler.Xml(Bundle(""));
         });
-        using var context = new FhirTestContext(BaseUrl, handler);
+        using var context = new FhirTestContext(BaseUrl, handler, showProviderAssociations: true);
         var watch = Stopwatch.StartNew();
         var results = new List<RecentReportItem>();
         await foreach (var item in context.Service.StreamRecentReportsAsync(false)) results.Add(item);
@@ -43,7 +43,7 @@ public sealed class RecentPatientTimeoutTests
             await Task.Delay(Timeout.Infinite, token);
             return ScriptedHandler.Xml(Patient);
         });
-        using var context = new FhirTestContext(BaseUrl, handler);
+        using var context = new FhirTestContext(BaseUrl, handler, showProviderAssociations: true);
         var results = new List<PatientSummary>();
         await foreach (var patient in context.Service.StreamRecentPatientsAsync()) results.Add(patient);
         Assert.Equal("p1", Assert.Single(results).Id);
@@ -64,7 +64,7 @@ public sealed class RecentPatientTimeoutTests
             await Task.Delay(3000, token);
             return ScriptedHandler.Xml(Bundle(""));
         });
-        using var context = new FhirTestContext(BaseUrl, handler);
+        using var context = new FhirTestContext(BaseUrl, handler, showProviderAssociations: true);
         var results = new List<RecentReportItem>();
         await foreach (var item in context.Service.StreamRecentReportsAsync(false)) results.Add(item);
         Assert.Equal(PractitionerAssociationStatus.Incomplete, Assert.Single(results).ProviderStatus);
@@ -78,7 +78,7 @@ public sealed class RecentPatientTimeoutTests
             await Task.Delay(5200, token);
             return ScriptedHandler.Xml(Bundle(Entry(Patient)));
         });
-        using var context = new FhirTestContext(BaseUrl, handler);
+        using var context = new FhirTestContext(BaseUrl, handler, showProviderAssociations: true);
         await foreach (var patient in context.Service.StreamPatientSearchAsync("mrn", null, null))
         {
             var result = await context.Service.AddPatientPractitionersAsync(patient);
@@ -94,7 +94,7 @@ public sealed class RecentPatientTimeoutTests
             await Task.Delay(Timeout.Infinite, token);
             return ScriptedHandler.Xml(Bundle(""));
         });
-        using var context = new FhirTestContext(BaseUrl, handler);
+        using var context = new FhirTestContext(BaseUrl, handler, showProviderAssociations: true);
         using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
         var patient = new PatientSummary("p1", "Test", [], null, null, null, null, null);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
@@ -118,7 +118,7 @@ public sealed class RecentPatientTimeoutTests
             await Task.Delay(Timeout.Infinite, token);
             return ScriptedHandler.Xml(Bundle(""));
         });
-        using var context = new FhirTestContext(BaseUrl, handler);
+        using var context = new FhirTestContext(BaseUrl, handler, showProviderAssociations: true);
         var patient = new PatientSummary("p1", "Test", [], null, null, null, null, null);
         var result = await context.Service.AddRecentPatientPractitionersAsync(patient);
         Assert.Equal(PractitionerAssociationStatus.Incomplete, result.PractitionerStatus);

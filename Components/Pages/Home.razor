@@ -64,7 +64,7 @@
             <button data-audit="Home:NextPage" class="secondary-button" @onclick="NextPageAsync" disabled="@(Busy || ErrorMessage is not null || (Page + 1 >= Pages.Count && !HasMore))">Next →</button>
         </nav>
     </section>
-    @if (!IsSearch) { <p class="search-help">Recent patients have a loading limit per patient. Slow records may be skipped or have incomplete provider details. Search for a patient specifically to wait for their record.</p> }
+    @if (!IsSearch) { <p class="search-help">Recent patients have a loading limit per patient. Slow records may be skipped. Search for a patient specifically to wait for their record.</p> }
 </div>
 
 @code {

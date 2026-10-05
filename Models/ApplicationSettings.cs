@@ -4,6 +4,7 @@ namespace ClinicalDataExplorer.Models;
 
 public sealed class ApplicationSettings
 {
+    public bool ShowProviderAssociations { get; set; } = false;
     [Required]
     [StringLength(120)]
     public string ProductName { get; set; } = "Clinical Data Explorer";
@@ -55,6 +56,7 @@ public sealed class ApplicationSettings
 
     public ApplicationSettings Clone() => new()
     {
+        ShowProviderAssociations = ShowProviderAssociations,
         ProductName = ProductName,
         FacilityName = FacilityName,
         FhirBaseUrl = FhirBaseUrl,

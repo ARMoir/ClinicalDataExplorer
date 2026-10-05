@@ -34,22 +34,26 @@ public sealed partial class FhirService
                 var id = Value(report, "id");
                 if (id.Length == 0 || !seen.Add(id)) continue;
                 IReadOnlyList<PractitionerAssociation> providers = [];
-                var status = PractitionerAssociationStatus.Complete;
+                var status = PractitionerAssociationStatus.NotLoaded;
                 string? error = null;
-                try
+                if (settingsService.Current.ShowProviderAssociations)
                 {
-                    var loaded = await LoadDiagnosticReportByIdAsync(id, cancellationToken);
-                    providers = loaded.Providers;
-                    if (providers.Any(p => !p.IsResolved))
+                    try
                     {
-                        status = PractitionerAssociationStatus.Incomplete;
-                        error = "Some provider references could not be resolved.";
+                        var loaded = await LoadDiagnosticReportByIdAsync(id, cancellationToken);
+                        providers = loaded.Providers;
+                        status = PractitionerAssociationStatus.Complete;
+                        if (providers.Any(p => !p.IsResolved))
+                        {
+                            status = PractitionerAssociationStatus.Incomplete;
+                            error = "Some provider references could not be resolved.";
+                        }
                     }
-                }
-                catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or System.Xml.XmlException)
-                {
-                    status = PractitionerAssociationStatus.Unavailable;
-                    error = "Provider associations unavailable. " + ex.Message;
+                    catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or System.Xml.XmlException)
+                    {
+                        status = PractitionerAssociationStatus.Unavailable;
+                        error = "Provider associations unavailable. " + ex.Message;
+                    }
                 }
                 var title = report.Element(Fhir + "code") is { } code ? ReadCodeableConcept(code) : "Diagnostic report";
                 var subject = report.Element(Fhir + "subject");
@@ -94,7 +98,8 @@ public sealed partial class FhirService
     {
         var baseUri = GetBaseUri();
         var uri = new Uri(baseUri, "DiagnosticReport?_id=" + Uri.EscapeDataString(RequireId(id, "report id")) +
-            "&_include=DiagnosticReport:result&_include:iterate=Observation:performer&_include:iterate=PractitionerRole:practitioner&_format=xml");
+            "&_include=DiagnosticReport:result" +
+            (settingsService.Current.ShowProviderAssociations ? "&_include:iterate=Observation:performer&_include:iterate=PractitionerRole:practitioner" : "") + "&_format=xml");
         var document = ParseDocument(await GetAllBundlePagesAsync(uri, baseUri, cancellationToken));
         var reports = ReadResources(document, "DiagnosticReport").ToList();
         if (reports.Count != 1 || Value(reports[0], "id") != id)

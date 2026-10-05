@@ -301,8 +301,9 @@ public sealed partial class FhirService(
             "DiagnosticReport" +
             "?identifier=" + Uri.EscapeDataString(identifier.Trim()) +
             "&_include=" + Uri.EscapeDataString("DiagnosticReport:result") +
-            "&_include:iterate=" + Uri.EscapeDataString("Observation:performer") +
-            "&_include:iterate=" + Uri.EscapeDataString("PractitionerRole:practitioner") +
+            (settingsService.Current.ShowProviderAssociations
+                ? "&_include:iterate=" + Uri.EscapeDataString("Observation:performer") +
+                  "&_include:iterate=" + Uri.EscapeDataString("PractitionerRole:practitioner") : "") +
             "&_format=xml";
 
         var baseUri = GetBaseUri();

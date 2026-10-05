@@ -35,6 +35,7 @@ public sealed class ApplicationSettingsService
 
         var normalized = new ApplicationSettings
         {
+            ShowProviderAssociations = settings.ShowProviderAssociations,
             ProductName = string.IsNullOrWhiteSpace(settings.ProductName) ? "Clinical Data Explorer" : settings.ProductName.Trim(),
             FacilityName = string.IsNullOrWhiteSpace(settings.FacilityName) ? "Your Facility" : settings.FacilityName.Trim(),
             FhirBaseUrl = NormalizeFhirBaseUrl(settings.FhirBaseUrl),

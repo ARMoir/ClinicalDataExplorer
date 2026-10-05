@@ -163,6 +163,9 @@ public sealed class FhirCompatibilityTests
                 return ScriptedHandler.Xml(Bundle(observation + practitioner));
             });
         using var context = new FhirTestContext(BaseUrl, handler);
+        var settings = context.Settings.Current;
+        settings.ShowProviderAssociations = true;
+        await context.Settings.SaveAsync(settings);
         var result = await context.Service.GetDiagnosticReportBundleXmlAsync("system|report");
         var document = XDocument.Parse(result.Xml);
         Assert.Equal("1", document.Root!.Element(Fhir + "total")!.Attribute("value")!.Value);

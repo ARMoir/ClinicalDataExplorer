@@ -29,7 +29,7 @@ public sealed class RecentReportTests
             Assert.Contains("_id=r2", request.RequestUri!.Query);
             return ScriptedHandler.Xml(Bundle(Entry(Report("r2")) + Entry(Doctor)));
         });
-        using var context = new FhirTestContext(BaseUrl, handler);
+        using var context = new FhirTestContext(BaseUrl, handler, showProviderAssociations: true);
         var items = new List<RecentReportItem>();
         await foreach (var item in context.Service.StreamRecentReportsAsync(true)) items.Add(item);
         Assert.Equal(new[] { "r1", "r2" }, items.Select(i => i.Id));
@@ -58,7 +58,7 @@ public sealed class RecentReportTests
                 Assert.Equal("/r4/Patient/p1/$everything", request.RequestUri!.AbsolutePath);
                 return ScriptedHandler.Xml(Bundle(Entry(patient) + Entry(Doctor)));
             });
-        using var context = new FhirTestContext(BaseUrl, handler);
+        using var context = new FhirTestContext(BaseUrl, handler, showProviderAssociations: true);
         var items = new List<RecentReportItem>();
         await foreach (var item in context.Service.StreamRecentReportsAsync(false)) items.Add(item);
         var result = Assert.Single(items);
@@ -73,7 +73,7 @@ public sealed class RecentReportTests
         using var handler = new ScriptedHandler(_ => ScriptedHandler.Xml(Bundle(Entry(Report("r1")))),
             _ => ScriptedHandler.Xml("<OperationOutcome xmlns='http://hl7.org/fhir'/>", HttpStatusCode.Forbidden),
             _ => ScriptedHandler.Xml("<OperationOutcome xmlns='http://hl7.org/fhir'/>", HttpStatusCode.NotFound));
-        using var context = new FhirTestContext(BaseUrl, handler);
+        using var context = new FhirTestContext(BaseUrl, handler, showProviderAssociations: true);
         var items = new List<RecentReportItem>();
         await foreach (var item in context.Service.StreamRecentReportsAsync(true)) items.Add(item);
         var result = Assert.Single(items);
@@ -95,7 +95,7 @@ public sealed class RecentReportTests
                 Assert.Equal("/r4/Patient/p1", request.RequestUri!.AbsolutePath);
                 return ScriptedHandler.Xml(Patient.Replace("<Patient>", "<Patient xmlns='http://hl7.org/fhir'>"));
             });
-        using var context = new FhirTestContext(BaseUrl, handler);
+        using var context = new FhirTestContext(BaseUrl, handler, showProviderAssociations: true);
         var items = new List<RecentReportItem>();
         await foreach (var item in context.Service.StreamRecentReportsAsync(true)) items.Add(item);
         Assert.Equal("Example, Alex", Assert.Single(items).Patient!.DisplayName);
@@ -110,7 +110,7 @@ public sealed class RecentReportTests
             Assert.Contains("_id=r1", request.RequestUri!.Query);
             return ScriptedHandler.Xml(Bundle(Entry(Report("r1")) + Entry(Doctor)));
         });
-        using var context = new FhirTestContext(BaseUrl, handler);
+        using var context = new FhirTestContext(BaseUrl, handler, showProviderAssociations: true);
         Assert.Contains("Dr Example", (await context.Service.GetDiagnosticReportByIdAsync("r1")).Xml);
     }
 }

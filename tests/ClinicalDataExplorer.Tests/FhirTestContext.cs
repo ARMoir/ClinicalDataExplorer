@@ -15,7 +15,7 @@ internal sealed class FhirTestContext : IDisposable, IHttpClientFactory
     public FhirService Service { get; }
     public ApplicationSettingsService Settings { get; }
 
-    public FhirTestContext(string baseUrl, HttpMessageHandler? handler = null)
+    public FhirTestContext(string baseUrl, HttpMessageHandler? handler = null, bool showProviderAssociations = false)
     {
         baseUrl = baseUrl.TrimEnd('/') + "/";
         Client = new HttpClient(handler ?? new HttpClientHandler { AllowAutoRedirect = false })
@@ -28,7 +28,7 @@ internal sealed class FhirTestContext : IDisposable, IHttpClientFactory
         var settings = new ApplicationSettingsService(new TestEnvironment(root.FullName));
         Settings = settings;
         // Only the disposable test directory is written; never load work settings.
-        settings.SaveAsync(new ApplicationSettings { FhirBaseUrl = baseUrl }).GetAwaiter().GetResult();
+        settings.SaveAsync(new ApplicationSettings { FhirBaseUrl = baseUrl, ShowProviderAssociations = showProviderAssociations }).GetAwaiter().GetResult();
         Service = new FhirService(this, settings);
     }
 

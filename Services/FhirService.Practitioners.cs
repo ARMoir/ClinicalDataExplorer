@@ -12,6 +12,7 @@ public sealed partial class FhirService
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (!settingsService.Current.ShowProviderAssociations) return patient;
         var found = new System.Collections.Concurrent.ConcurrentDictionary<string, PractitionerAssociation>(StringComparer.Ordinal);
         void Remember(PractitionerAssociation provider) => found.AddOrUpdate(provider.Reference, provider,
             (_, previous) => previous.IsResolved && !provider.IsResolved ? previous : provider);
@@ -68,6 +69,7 @@ public sealed partial class FhirService
 
     private async Task<string> AddPractitionerPresentationAsync(string xml, CancellationToken cancellationToken)
     {
+        if (!settingsService.Current.ShowProviderAssociations) return xml;
         var document = ParseDocument(xml);
         await ResolvePractitionerReferencesAsync(document, cancellationToken);
         return document.ToString(SaveOptions.DisableFormatting);
@@ -76,6 +78,8 @@ public sealed partial class FhirService
     public async Task<PatientSummary> AddPatientPractitionersAsync(PatientSummary patient,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!settingsService.Current.ShowProviderAssociations) return patient;
         try
         {
             var xml = await GetAllBundlePagesAsync("Patient/" + Uri.EscapeDataString(RequireId(patient.Id, "patient")) +
@@ -141,6 +145,7 @@ public sealed partial class FhirService
         XDocument document, CancellationToken cancellationToken,
         Action<PractitionerAssociation>? onProvider = null, bool fetchMissing = true)
     {
+        if (!settingsService.Current.ShowProviderAssociations) return [];
         var baseUri = GetBaseUri();
         var resources = document.Root!.Name == Fhir + "Bundle" ? document.Root.Elements(Fhir + "entry")
             .Select(e => e.Element(Fhir + "resource")?.Elements().FirstOrDefault()).OfType<XElement>().ToList() : [document.Root];

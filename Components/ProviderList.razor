@@ -1,4 +1,7 @@
 @namespace ClinicalDataExplorer.Components
+@inject ApplicationSettingsService SettingsService
+@if (SettingsService.Current.ShowProviderAssociations)
+{
                         <div class="patient-providers">
                             <strong class="patient-providers-label">Associated providers:</strong>
                             @if (Error is not null) { <p class="@(Incomplete ? "provider-lookup-warning" : "provider-lookup-error")" role="status">@Error</p> }
@@ -29,6 +32,7 @@
                             }
                         </div>
 
+}
 @code {
     [Parameter] public IReadOnlyList<PractitionerAssociation> Providers { get; set; } = [];
     [Parameter] public bool Incomplete { get; set; }
