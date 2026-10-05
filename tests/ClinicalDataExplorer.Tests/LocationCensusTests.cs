@@ -15,6 +15,50 @@ public sealed class LocationCensusTests
         $"<location><location><reference value='{id}'/></location><status value='{status}'/>{period}</location>";
     private const string Patient = "<entry><resource><Patient><id value='p1'/><name><text value='Test Patient'/></name></Patient></resource></entry>";
 
+    [Fact]
+    public async Task Location_picker_reads_all_locations_without_loading_encounters()
+    {
+        using var handler = new ScriptedHandler(
+            request => { Assert.Equal("/r4/Location", request.RequestUri!.AbsolutePath); return ScriptedHandler.Xml(Bundle(Location("b"), "Location?cursor=2")); },
+            _ => ScriptedHandler.Xml(Bundle(Location("a"))));
+        using var context = new FhirTestContext(BaseUrl, handler);
+        var locations = await context.Service.GetCensusLocationsAsync();
+        Assert.Equal(new[] { "Location/a", "Location/b" }, locations.Select(l => l.Key));
+        Assert.All(locations, l => Assert.Empty(l.Encounters));
+        Assert.Equal(2, handler.Calls);
+    }
+
+    [Fact]
+    public async Task Empty_selection_makes_no_requests()
+    {
+        using var handler = new ScriptedHandler();
+        using var context = new FhirTestContext(BaseUrl, handler);
+        Assert.Empty(await context.Service.GetLocationCensusAsync(selectedLocations: []));
+        Assert.Equal(0, handler.Calls);
+    }
+
+    [Fact]
+    public async Task Selected_census_filters_requests_and_excludes_other_and_historical_locations()
+    {
+        using var handler = new ScriptedHandler(request =>
+        {
+            Assert.Equal("/r4/Encounter", request.RequestUri!.AbsolutePath);
+            Assert.Contains("&location=Location/a,Location/c", Uri.UnescapeDataString(request.RequestUri.Query));
+            return ScriptedHandler.Xml(Bundle(Patient +
+                Encounter("selected", "in-progress", Assignment(BaseUrl + "Location/a") + Assignment("Location/b")) +
+                Encounter("other", "in-progress", Assignment("Location/b")) +
+                Encounter("historical", "in-progress", Assignment("Location/a", "completed") + Assignment("Location/b")) +
+                Encounter("unassigned", "in-progress")));
+        });
+        using var context = new FhirTestContext(BaseUrl, handler);
+        var groups = await context.Service.GetLocationCensusAsync(selectedLocations:
+            [new("Location/a", "Ward a", "active", []), new("Location/c", "Ward c", "active", [])]);
+        Assert.Equal(2, groups.Count);
+        Assert.Equal("selected", Assert.Single(groups.Single(g => g.Key == "Location/a").Encounters).Encounter.Id);
+        Assert.Empty(groups.Single(g => g.Key == "Location/c").Encounters);
+        Assert.Equal(1, handler.Calls);
+    }
+
     [Theory]
     [InlineData("Location?cursor=2", "Encounter?cursor=2")]
     [InlineData("?cursor=2", "?cursor=2")]

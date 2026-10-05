@@ -5,13 +5,33 @@ namespace ClinicalDataExplorer.Services;
 
 public sealed partial class FhirService
 {
-    public async Task<IReadOnlyList<LocationCensusGroup>> GetLocationCensusAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<LocationCensusGroup>> GetCensusLocationsAsync(CancellationToken cancellationToken = default)
     {
         var baseUri = GetBaseUri();
-        var now = DateTimeOffset.UtcNow;
         var locations = ParseDocument(await GetAllBundlePagesAsync(new Uri(baseUri, "Location?_count=100&_format=xml"), baseUri, cancellationToken));
+        return ReadResources(locations, "Location").Where(l => Value(l, "id").Length > 0)
+            .Select(l => new LocationCensusGroup("Location/" + Value(l, "id"),
+                EmptyToNull(Value(l, "name")) ?? "Location " + Value(l, "id"), EmptyToNull(Value(l, "status")), []))
+            .OrderBy(l => l.Name, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    public async Task<IReadOnlyList<LocationCensusGroup>> GetLocationCensusAsync(CancellationToken cancellationToken = default,
+        IReadOnlyList<LocationCensusGroup>? selectedLocations = null)
+    {
+        if (selectedLocations is { Count: 0 }) return [];
+        var baseUri = GetBaseUri();
+        var now = DateTimeOffset.UtcNow;
+        var selectedKeys = selectedLocations?.Select(l => l.Key).ToHashSet(StringComparer.Ordinal);
+        var locations = selectedLocations is null
+            ? ParseDocument(await GetAllBundlePagesAsync(new Uri(baseUri, "Location?_count=100&_format=xml"), baseUri, cancellationToken))
+            : new XDocument(new XElement(Fhir + "Bundle", selectedLocations.Select(l =>
+                new XElement(Fhir + "entry", new XElement(Fhir + "resource", new XElement(Fhir + "Location",
+                    new XElement(Fhir + "id", new XAttribute("value", l.Key[9..])),
+                    new XElement(Fhir + "name", new XAttribute("value", l.Name)),
+                    new XElement(Fhir + "status", new XAttribute("value", l.Status ?? ""))))))));
+        var locationFilter = selectedKeys is null ? "" : "&location=" + string.Join(",", selectedKeys.Select(Uri.EscapeDataString));
         var encounters = ParseDocument(await GetAllBundlePagesAsync(new Uri(baseUri,
-            "Encounter?status=arrived,triaged,in-progress,onleave&_include=Encounter:patient&_count=100&_format=xml"), baseUri, cancellationToken));
+            "Encounter?status=arrived,triaged,in-progress,onleave&_include=Encounter:patient&_count=100&_format=xml" + locationFilter), baseUri, cancellationToken));
         var groups = new Dictionary<string, (string Name, string? Status, List<LocationCensusEncounter> Rows)>(StringComparer.Ordinal);
         foreach (var location in ReadResources(locations, "Location"))
         {
@@ -27,6 +47,10 @@ public sealed partial class FhirService
             cancellationToken.ThrowIfCancellationRequested();
             if (Value(resource, "status") is not ("arrived" or "triaged" or "in-progress" or "onleave") ||
                 !CensusPeriodIsCurrent(resource.Element(Fhir + "period"), now)) continue;
+            var currentLocations = resource.Elements(Fhir + "location")
+                .Where(l => Value(l, "status") is "" or "active" && CensusPeriodIsCurrent(l.Element(Fhir + "period"), now)).ToList();
+            if (selectedKeys is not null && !currentLocations.Any(l =>
+                selectedKeys.Contains(CensusReferenceKey(Value(l.Element(Fhir + "location"), "reference"), "Location", baseUri, locations) ?? ""))) continue;
             var encounter = ToEncounter(resource);
             if (encounter.Id.Length == 0) throw new InvalidOperationException("A census encounter has no record ID.");
             var subject = resource.Element(Fhir + "subject");
@@ -44,8 +68,6 @@ public sealed partial class FhirService
             }
             var row = new LocationCensusEncounter(encounter, patient, patientId,
                 patient?.DisplayName ?? EmptyToNull(Value(subject, "display")) ?? EmptyToNull(Value(subject, "reference")) ?? "Patient not recorded");
-            var currentLocations = resource.Elements(Fhir + "location")
-                .Where(l => Value(l, "status") is "" or "active" && CensusPeriodIsCurrent(l.Element(Fhir + "period"), now)).ToList();
             var keys = new HashSet<string>(StringComparer.Ordinal);
             foreach (var location in currentLocations)
             {
@@ -54,6 +76,7 @@ public sealed partial class FhirService
                 var display = Value(reference, "display");
                 var key = CensusReferenceKey(raw, "Location", baseUri, locations)
                     ?? (raw.Length > 0 ? "unresolved:" + raw : display.Length > 0 ? "display:" + display : "unassigned");
+                if (selectedKeys is not null && !selectedKeys.Contains(key)) continue;
                 if (!groups.ContainsKey(key)) groups[key] = (EmptyToNull(display) ?? EmptyToNull(raw) ?? "No current location recorded", null, []);
                 if (keys.Add(key)) groups[key].Rows.Add(row);
             }

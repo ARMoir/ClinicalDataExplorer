@@ -8,9 +8,31 @@
 <PageTitle>@($"{SettingsService.Current.ProductName} - Census")</PageTitle>
 <div class="page-header">
     <div><h1>Census</h1><p>Current encounters and patients by location, ordered by newest encounter start date. Encounters within each location are newest first.</p></div>
-    <button data-audit="LocationCensus:Refresh" class="secondary-button" @onclick="LoadAsync" disabled="@Busy">Refresh census</button>
 </div>
 <p>Includes arrived, triaged, in-progress and on-leave encounters whose period has not ended. Only current location assignments are shown. An encounter may appear at more than one location.</p>
+<section class="search-card census-filters" aria-label="Choose census locations">
+    <h2>Choose locations</h2>
+    <p>Select the locations to include, then load the census.</p>
+    <div class="search-row">
+        <button type="button" data-audit="Census:SelectAll" @onclick="SelectAll" disabled="@(Busy || Locations.Count == 0)">Select all</button>
+        <button type="button" data-audit="Census:ClearSelection" @onclick="ClearSelection" disabled="@(Busy || SelectedKeys.Count == 0)">Clear selection</button>
+        <button type="button" data-audit="Census:LoadLocations" @onclick="LoadLocationsAsync" disabled="@Busy">Reload locations</button>
+    </div>
+    <div class="census-location-options">
+        @foreach (var location in Locations)
+        {
+            <label class="census-empty-toggle" @key="location.Key">
+                <input type="checkbox" data-audit="Census:SelectLocation" checked="@SelectedKeys.Contains(location.Key)"
+                       @onchange="e => SetSelected(location.Key, e.Value is true)" disabled="@Busy" />
+                <span>@location.Name <small>(@location.Key)</small></span>
+            </label>
+        }
+    </div>
+    <p role="status">@SelectedKeys.Count of @Locations.Count locations selected</p>
+    <button type="button" data-audit="LocationCensus:Refresh" @onclick="LoadAsync" disabled="@(Busy || SelectedKeys.Count == 0)">@(LoadedAt is null ? "Load census" : "Refresh census")</button>
+</section>
+@if (LoadedAt is not null)
+{
 <section class="search-card census-filters" aria-label="Census filters">
     <label for="census-search">Search locations or patients</label>
     <div class="search-row">
@@ -23,13 +45,18 @@
         <input id="census-hide-empty" type="checkbox" data-audit="Census:HideEmpty" @bind="HideEmpty" /> Hide empty locations
     </label>
 </section>
+}
 @if (Busy)
 {
-    <div class="empty-state" role="status">Loading census…</div>
+    <div class="empty-state" role="status">@LoadingMessage</div>
 }
 else if (Error is not null)
 {
     <div class="error-card" role="alert">@Error</div>
+}
+else if (LoadedAt is null)
+{
+    <div class="empty-state">@(Locations.Count == 0 ? "No locations were returned. Reload locations to try again." : "Choose one or more locations and select Load census.")</div>
 }
 else
 {
@@ -76,6 +103,9 @@ else
 @code {
     private readonly CancellationTokenSource Lifetime = new();
     private IReadOnlyList<LocationCensusGroup> Groups = [];
+    private IReadOnlyList<LocationCensusGroup> Locations = [];
+    private readonly HashSet<string> SelectedKeys = new(StringComparer.Ordinal);
+    private string LoadingMessage = "Loading locations…";
     private bool Busy;
     private string? Error;
     private DateTimeOffset? LoadedAt;
@@ -104,15 +134,39 @@ else
         }
         return result;
     }
-    protected override Task OnInitializedAsync() => LoadAsync();
-    private async Task LoadAsync()
+    private void ResetCensus() { Groups = []; LoadedAt = null; Error = null; }
+    private void SetSelected(string key, bool selected)
+    {
+        if (selected) SelectedKeys.Add(key); else SelectedKeys.Remove(key);
+        ResetCensus();
+    }
+    private void SelectAll() { SelectedKeys.UnionWith(Locations.Select(l => l.Key)); ResetCensus(); }
+    private void ClearSelection() { SelectedKeys.Clear(); ResetCensus(); }
+    protected override Task OnInitializedAsync() => LoadLocationsAsync();
+    private async Task LoadLocationsAsync()
     {
         Busy = true;
-        Error = null;
-        Groups = [];
+        LoadingMessage = "Loading locations…";
+        ResetCensus();
         try
         {
-            Groups = await FhirService.GetLocationCensusAsync(Lifetime.Token);
+            Locations = await FhirService.GetCensusLocationsAsync(Lifetime.Token);
+            SelectedKeys.IntersectWith(Locations.Select(l => l.Key));
+        }
+        catch (OperationCanceledException) when (Lifetime.IsCancellationRequested) { }
+        catch (Exception ex) { Error = "Unable to load locations. " + ex.Message; }
+        finally { Busy = false; }
+    }
+    private async Task LoadAsync()
+    {
+        if (SelectedKeys.Count == 0) return;
+        Busy = true;
+        LoadingMessage = "Loading census…";
+        ResetCensus();
+        try
+        {
+            Groups = await FhirService.GetLocationCensusAsync(Lifetime.Token,
+                Locations.Where(l => SelectedKeys.Contains(l.Key)).ToList());
             LoadedAt = DateTimeOffset.Now;
         }
         catch (OperationCanceledException) when (Lifetime.IsCancellationRequested) { }
