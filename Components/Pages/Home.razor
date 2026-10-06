@@ -73,13 +73,18 @@
     private readonly List<IReadOnlyList<PatientSummary>> Pages = [];
     private PatientSummary? Lookahead;
     private int Page;
-    private bool Busy, IsSearch, HasMore;
+    private bool Busy = true;
+    private bool IsSearch, HasMore;
     private string SearchMode = "identifier", Identifier = "", Family = "", Given = "";
     private string ListDescription = "Ordered by most recent encounter", ActiveIdentifier = "", ActiveFamily = "", ActiveGiven = "";
     private string? ErrorMessage;
     private bool CanSearch => SearchMode == "identifier" ? !string.IsNullOrWhiteSpace(Identifier) : !string.IsNullOrWhiteSpace(Family) || !string.IsNullOrWhiteSpace(Given);
     private IReadOnlyList<PatientSummary> CurrentPatients => Pages.Count > Page ? Pages[Page] : [];
-    protected override Task OnInitializedAsync() => LoadRecentAsync();
+    // Prerender and the interactive circuit create separate component instances.
+    // Fetch only in the interactive instance so startup does not load the list twice.
+    protected override Task OnInitializedAsync() => RendererInfo.IsInteractive
+        ? LoadRecentAsync()
+        : Task.CompletedTask;
     private Task LoadRecentAsync() { IsSearch = false; ListDescription = "Ordered by most recent encounter"; return ResetAsync(); }
     private Task SearchAsync()
     {
