@@ -30,6 +30,7 @@ public sealed class XsltService(IWebHostEnvironment environment)
         {
             using var referenceReader = XmlReader.Create(new StringReader(xml), SecureReaderSettings());
             var document = XDocument.Load(referenceReader);
+            if (templateName == "PatientResources") DocumentAttachmentText.Annotate(document);
             FhirReferenceLinks.Annotate(document, new Uri(settings.FhirBaseUrl.TrimEnd('/') + "/"), localTargets: templateName == "PatientResources");
             xml = document.ToString(SaveOptions.DisableFormatting);
         }

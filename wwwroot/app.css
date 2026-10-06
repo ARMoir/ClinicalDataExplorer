@@ -224,6 +224,7 @@ main h1[tabindex="-1"]:focus { outline: none; box-shadow: none; text-decoration:
     line-height: 1.5;
     color: #20262c;
 }
+.attachment-text,
 .document-line,
 .document-page-header,
 .document-page-footer,
@@ -572,7 +573,8 @@ button:disabled { opacity: .55; cursor: default; }
 }
 .resource-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; color: #566573; font-size: 13px; margin-bottom: 14px; }
 .resource-all-fields summary { cursor: pointer; color: var(--primary-color); font-size: 13px; font-weight: 650; padding: 8px 0; }
-.observation-report-text > summary { cursor: pointer; color: var(--primary-color); font-size: 14px; font-weight: 650; padding: 10px 0; }
+.observation-report-text > summary,
+.document-attachment-text > summary { cursor: pointer; color: var(--primary-color); font-size: 14px; font-weight: 650; padding: 10px 0; }
 .xslt-detail-grid .value small { display: block; color: #566573; }
 
 /* Shared reference information stays out of the clinical workspace until opened. */

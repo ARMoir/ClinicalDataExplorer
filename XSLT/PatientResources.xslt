@@ -34,6 +34,13 @@
           <div class="resource-summary"><span>Record ID: <xsl:value-of select="f:id/@value"/></span><xsl:if test="f:status/@value"><span class="status-chip"><xsl:value-of select="f:status/@value"/></span></xsl:if><span><xsl:value-of select="f:effectiveDateTime/@value | f:period/f:start/@value | f:authoredOn/@value | f:recordedDate/@value | f:date/@value"/></span></div>
           <xsl:if test="not($reportText) and (f:valueQuantity or f:valueString or f:valueCodeableConcept or f:valueBoolean or f:valueInteger)"><p class="observation-value"><xsl:value-of select="f:valueQuantity/f:comparator/@value"/><xsl:value-of select="f:valueQuantity/f:value/@value | f:valueString/@value | f:valueBoolean/@value | f:valueInteger/@value"/><xsl:text> </xsl:text><xsl:choose><xsl:when test="f:valueQuantity/f:unit/@value"><xsl:value-of select="f:valueQuantity/f:unit/@value"/></xsl:when><xsl:otherwise><xsl:value-of select="f:valueQuantity/f:code/@value"/></xsl:otherwise></xsl:choose><xsl:choose><xsl:when test="f:valueCodeableConcept/f:text/@value"><xsl:value-of select="f:valueCodeableConcept/f:text/@value"/></xsl:when><xsl:otherwise><xsl:value-of select="f:valueCodeableConcept/f:coding[1]/f:display/@value"/></xsl:otherwise></xsl:choose></p></xsl:if>
           <xsl:if test="$reportText"><details class="observation-report-text" data-audit="ObservationReportText:{f:id/@value}"><summary>View report text</summary><xsl:for-each select="$reportText"><div class="clinical-document"><xsl:call-template name="render-report-lines"><xsl:with-param name="text" select="."/></xsl:call-template></div></xsl:for-each></details></xsl:if>
+          <xsl:for-each select="self::f:DocumentReference/f:content/f:attachment[p:documentText or p:documentTextNotice]">
+            <xsl:choose><xsl:when test="p:documentText">
+              <details class="document-attachment-text" data-audit="DocumentAttachmentText:{ancestor::f:DocumentReference/f:id/@value}"><summary>View document text<xsl:if test="f:title/@value"> — <xsl:value-of select="f:title/@value"/></xsl:if></summary>
+                <div class="clinical-document attachment-text"><xsl:value-of select="p:documentText"/></div>
+              </details>
+            </xsl:when><xsl:otherwise><p class="document-attachment-notice"><xsl:if test="f:title/@value"><strong><xsl:value-of select="f:title/@value"/>: </strong></xsl:if><xsl:value-of select="p:documentTextNotice"/></p></xsl:otherwise></xsl:choose>
+          </xsl:for-each>
           <xsl:if test="p:sharedRecords"><p class="shared-record-summary">Shared details across <xsl:value-of select="count(p:sharedRecords/p:record)"/> records. Encounter associations are preserved below.</p></xsl:if>
           <dl class="record-highlights"><xsl:apply-templates select="." mode="highlights"/></dl>
           <xsl:if test="p:sharedRecords"><details class="shared-record-details"><summary>Original records and encounter associations</summary><xsl:for-each select="p:sharedRecords/p:record/*"><h4>Record ID: <xsl:value-of select="f:id/@value"/></h4><dl class="resource-fields"><xsl:apply-templates select="*" mode="field"/></dl></xsl:for-each></details></xsl:if>
@@ -46,6 +53,7 @@
   </xsl:template>
   <xsl:template match="p:consolidatedObservations" mode="field"/>
   <xsl:template match="p:sharedRecords" mode="field"/>
+  <xsl:template match="p:documentText | p:documentTextNotice" mode="field"/>
   <xsl:template match="f:Observation | f:component" mode="lab-row">
     <xsl:variable name="observation" select="ancestor-or-self::f:Observation[1]"/>
     <xsl:variable name="flag"><xsl:choose><xsl:when test="f:interpretation/f:coding/f:code/@value"><xsl:value-of select="f:interpretation[1]/f:coding[1]/f:code/@value"/></xsl:when><xsl:otherwise><xsl:apply-templates select="f:interpretation[1]" mode="readable"/></xsl:otherwise></xsl:choose></xsl:variable>
