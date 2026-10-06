@@ -17,7 +17,7 @@
     <SavePatient PatientId="@PatientId" @key="PatientId" />
     <section class="report-customization search-card">
         <h2>Patient records</h2>
-        <p>@Sections.Sum(s => s.Count) records received. Each category loads independently, requesting 50 records per server page. Open another category to load it. Counts reflect only records received so far.</p>
+        <p>@Sections.Sum(s => s.Resources.Count) records received. Each category loads independently, requesting 50 records per server page. Open another category to load it. Counts reflect only records received so far.</p>
         <p>Linked supporting records are available through the links within each record.</p>
         <p role="status">@EnrichmentStatus</p>
         <div class="report-controls">
@@ -35,6 +35,10 @@
             <div id="@($"resources-{section.ResourceType}")" hidden="@(!section.Expanded)">
                 @if (section.Expanded)
                 {
+                    @if (section.ResourceType == "Observation")
+                    {
+                        <label class="report-empty-toggle"><input data-audit="PatientReport:FinalizedResultsOnly" type="checkbox" @bind="section.FinalizedResultsOnly" @bind:after="() => Render(section)" /> Final, complete, or signed results only</label>
+                    }
                     @foreach (var source in SectionSources(section))
                     {
                         @if (source.Loading) { <p role="status">Loading @ResourcePresentation.Label(source.ResourceType)…</p> }
@@ -49,6 +53,7 @@
                         @((MarkupString)(section.Html ?? ""))
                         <nav class="pagination" aria-label="@($"{section.Label} pages")"><button data-audit="PatientReport:PreviousSectionPage" class="secondary-button" disabled="@(section.Page == 0)" @onclick="() => ChangePage(section, -1)">← Previous</button><span>Records @(section.Page * 10 + 1)–@Math.Min((section.Page + 1) * 10, section.Count) of @section.Count</span><button data-audit="PatientReport:NextSectionPage" class="secondary-button" disabled="@((section.Page + 1) * 10 >= section.Count)" @onclick="() => ChangePage(section, 1)">Next →</button></nav>
                     }
+                    else if (section.ResourceType == "Observation" && section.FinalizedResultsOnly) { <p>No final, complete, or signed results in the records received so far.</p> }
                     else if (SectionSources(section).All(s => s.Loaded && !s.HasMore && s.Error is null)) { <p>No records returned.</p> }
                 }
             </div>
@@ -70,7 +75,7 @@
     private Dictionary<string, PatientResourceLoad> Sources = new(StringComparer.Ordinal);
     private readonly HashSet<string> Hidden = new(StringComparer.Ordinal);
     private IEnumerable<PatientResourceSection> VisibleSections => Sections.Where(s => !Hidden.Contains(s.ResourceType) &&
-        (ShowEmpty || s.Count > 0) &&
+        (ShowEmpty || s.Resources.Count > 0) &&
         (s.Label.Contains(Filter, StringComparison.OrdinalIgnoreCase) || s.ResourceType.Contains(Filter, StringComparison.OrdinalIgnoreCase)));
     private IEnumerable<PatientResourceLoad> SectionSources(PatientResourceSection section) => Sources.Values.Where(s =>
         s.ResourceType == section.ResourceType || (section.ResourceType == "DocumentReference" && s.ResourceType == "Observation"));
@@ -147,7 +152,11 @@
             if (!sections.Any(s => s.ResourceType == type)) sections.Add(new(type, []));
         for (var i = 0; i < sections.Count; i++)
         {
-            if (!previous.TryGetValue(sections[i].ResourceType, out var old)) continue;
+            if (!previous.TryGetValue(sections[i].ResourceType, out var old))
+            {
+                sections[i].FinalizedResultsOnly = sections[i].ResourceType == "Observation";
+                continue;
+            }
             old.UpdateResources(sections[i].Resources);
             if (old.Expanded) Render(old);
             sections[i] = old;
@@ -194,7 +203,7 @@
         if (section.Expanded) { Render(section); await Task.WhenAll(SectionSources(section).Where(s => !s.Loaded).Select(LoadSourceAsync)); }
     }
     private async Task ChangePage(PatientResourceSection section, int delta) { await AuditSectionAsync("SectionPage", section.ResourceType); section.Page += delta; Render(section); }
-    private async Task ExpandVisible() { await AuditSectionAsync("SectionsExpand", "Loaded sections"); foreach (var section in VisibleSections.Where(s => s.Count > 0)) { section.Expanded = true; Render(section); } }
+    private async Task ExpandVisible() { await AuditSectionAsync("SectionsExpand", "Loaded sections"); foreach (var section in VisibleSections.Where(s => s.Resources.Count > 0)) { section.Expanded = true; Render(section); } }
     private async Task CollapseAll() { await AuditSectionAsync("SectionsCollapse", "All"); foreach (var section in Sections) section.Expanded = false; }
     private async Task ToggleVisibility(PatientResourceSection section) { await AuditSectionAsync("SectionVisibility", section.ResourceType); if (!Hidden.Add(section.ResourceType)) Hidden.Remove(section.ResourceType); }
     public void Dispose() { Request?.Cancel(); Request?.Dispose(); }
