@@ -54,6 +54,7 @@
                 }
             }
         </section>
+        <PageScrollAnchor @key="Selected" Page="Page" Busy="Busy" />
         @if (Error is not null) { <div class="error-card" role="alert">@Error</div> }
         @if (Busy) { <p role="status">Loading…</p> }
         else if (Available.Count == 0) { <p>Create your first list, then save patients from search, Census, or a patient report.</p> }

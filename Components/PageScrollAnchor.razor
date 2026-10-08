@@ -1,0 +1,22 @@
+@using Microsoft.JSInterop
+@inject IJSRuntime JS
+
+<div @ref="Anchor" aria-hidden="true"></div>
+
+@code {
+    [Parameter] public int Page { get; set; }
+    [Parameter] public bool Busy { get; set; }
+    private ElementReference Anchor;
+    private int? RenderedPage;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Wait for the completed page's DOM, including when loading changes its height.
+        if (Busy) return;
+        var previousPage = RenderedPage;
+        RenderedPage = Page;
+        if (previousPage is null || previousPage == Page) return;
+        try { await JS.InvokeVoidAsync("scrollToListStart", Anchor); }
+        catch (JSDisconnectedException) { }
+    }
+}

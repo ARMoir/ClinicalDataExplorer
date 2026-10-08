@@ -31,22 +31,28 @@
     @foreach (var section in VisibleSections)
     {
         <section class="patient-resource-section" @key="section.ResourceType">
+            <PageScrollAnchor Page="section.Page" />
             <h2><button class="resource-toggle" data-audit="PatientReport:ToggleSection" aria-expanded="@(section.Expanded ? "true" : "false")" aria-controls="@($"resources-{section.ResourceType}")" @onclick="() => Toggle(section)"><span>@section.Label</span><span class="resource-count">@Status(section)</span><span aria-hidden="true">@(section.Expanded ? "−" : "+")</span></button></h2>
             <div id="@($"resources-{section.ResourceType}")" hidden="@(!section.Expanded)">
                 @if (section.Expanded)
                 {
-                    @if (section.ResourceType == "Observation")
-                    {
-                        <label class="report-empty-toggle"><input data-audit="PatientReport:FinalizedResultsOnly" type="checkbox" @bind="section.FinalizedResultsOnly" @bind:after="() => Render(section)" /> Final, complete, or signed results only</label>
-                    }
                     @foreach (var source in SectionSources(section))
                     {
                         @if (source.Loading) { <p role="status">Loading @ResourcePresentation.Label(source.ResourceType)…</p> }
                         @if (source.Error is not null) { <div class="error-card" role="alert">@ResourcePresentation.Label(source.ResourceType): @source.Error This category is incomplete; records already received remain available.</div> }
-                        @if (source.HasMore)
-                        {
-                            <button class="secondary-button" data-audit="PatientReport:LoadMoreSection" disabled="@source.Loading" @onclick="() => LoadMoreAsync(source)">@(source.Error is not null ? "Retry" : source.Loaded ? "Load more" : "Load") @ResourcePresentation.Label(source.ResourceType)</button>
-                        }
+                    }
+                    @if (section.ResourceType == "Observation" || SectionSources(section).Any(s => s.HasMore))
+                    {
+                        <div class="resource-section-controls">
+                            @foreach (var source in SectionSources(section).Where(s => s.HasMore))
+                            {
+                                <button class="secondary-button" data-audit="PatientReport:LoadMoreSection" disabled="@source.Loading" @onclick="() => LoadMoreAsync(source)">@(source.Error is not null ? "Retry" : source.Loaded ? "Load more" : "Load") @ResourcePresentation.Label(source.ResourceType)</button>
+                            }
+                            @if (section.ResourceType == "Observation")
+                            {
+                                <label class="report-empty-toggle resource-final-toggle"><input data-audit="PatientReport:FinalizedResultsOnly" type="checkbox" @bind="section.FinalizedResultsOnly" @bind:after="() => Render(section)" /> Final only</label>
+                            }
+                        </div>
                     }
                     @if (section.Count > 0)
                     {

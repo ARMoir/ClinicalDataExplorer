@@ -10,6 +10,7 @@
         <div><label for="audit-action">Action</label><input id="audit-action" @bind="Action" placeholder="e.g. FhirRead" /></div>
         <button disabled="@Busy">Filter / Refresh</button>
     </form>
+    <PageScrollAnchor Page="Cursors.Count" Busy="Busy" />
     <div class="audit-table-wrap" tabindex="0" role="region" aria-label="Audit events">
         <table class="audit-table"><caption class="sr-only">User activity audit events, newest first</caption>
             <thead><tr><th scope="col">Event / UTC</th><th scope="col">User</th><th scope="col">Action</th><th scope="col">Target</th><th scope="col">Outcome</th><th scope="col">Details</th></tr></thead>

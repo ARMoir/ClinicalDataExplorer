@@ -34,6 +34,7 @@
     </section>
     @if (ErrorMessage is not null) { <div class="error-card" role="alert">@ErrorMessage <button data-audit="Home:RetrySearch" class="secondary-button" @onclick="RetryAsync" disabled="@Busy">Retry</button></div> }
     <section class="patient-list-card directory-results" aria-busy="@(Busy ? "true" : "false")">
+        <PageScrollAnchor Page="Page" Busy="Busy" />
         <div class="card-heading-row"><div><h2>@(IsSearch ? "Search results" : "Recent patients")</h2><span>@ListDescription</span></div><span>5 per page</span></div>
         @if (Busy) { <div class="empty-state" role="status">Loading patients…</div> }
         else if (CurrentPatients.Count == 0 && ErrorMessage is null) { <div class="empty-state">No matching patients were returned.</div> }

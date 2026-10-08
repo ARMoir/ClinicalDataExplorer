@@ -1,7 +1,11 @@
 {
+  "ShowProviderAssociations": false,
   "ProductName": "Clinical Data Explorer",
   "FacilityName": "Reports",
-  "FhirBaseUrl": "https://server.fire.ly/",
+  "FhirBaseUrl": "http://localhost:8000/fhir/R4/",
+  "FhirHttpTimeoutSeconds": 30,
+  "FhirTimeoutRetryCount": 0,
+  "FhirRequestPageSize": 50,
   "AuthenticationMode": "Windows",
   "WindowsDomain": "",
   "AllUsersAreAdministrators": true,

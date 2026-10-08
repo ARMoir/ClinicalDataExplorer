@@ -31,6 +31,7 @@
                 { <p>No searchable reference categories were advertised. Use Server information to check the connection or refresh its capabilities.</p> }
                 <p class="search-help">Shared directories, terminology, forms, and definitions advertised by this server. Patient records are available through patient reports.</p>
             }
+            <PageScrollAnchor @key="Current" Page="Current.Page" Busy="Busy" />
             @if (Busy) { <div class="empty-state" role="status">Loading @ViewTitle.ToLowerInvariant()…</div> }
             @if (Current.Error is not null)
             {
