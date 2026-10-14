@@ -2,7 +2,7 @@
   "ShowProviderAssociations": false,
   "ProductName": "Clinical Data Explorer",
   "FacilityName": "Reports",
-  "FhirBaseUrl": "http://localhost:8000/fhir/R4/",
+  "FhirBaseUrl": "https://localhost/fhir/R4/",
   "FhirHttpTimeoutSeconds": 30,
   "FhirTimeoutRetryCount": 0,
   "FhirRequestPageSize": 50,
